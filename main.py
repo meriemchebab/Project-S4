@@ -11,6 +11,7 @@ def file1():
 
     print(f"The maximum value of our file 1 is: {Vmax}")
     print(f"The minimum value of our file 1 is: {Vmin}")
+    print(f"The offset is :{Vmin}")
 
 
 def file2():
@@ -24,6 +25,7 @@ def file2():
 
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
+    print(f"The offset is :{Vmin}")
 
 
 def file3():
@@ -37,6 +39,7 @@ def file3():
 
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
+    print(f"The offset is :{Vmin}")
 
 
 def file4():
@@ -50,6 +53,7 @@ def file4():
 
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
+    print(f"The offset is :{Vmin}")
 
 
 def menu():
