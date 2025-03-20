@@ -29,7 +29,7 @@ def file2():
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
 # same here 
-file_handel("courbe2.txt")
+    file_handel("courbe2.txt")
 
 def file3():
     df = pd.read_csv(r"courbe3.txt", header=None)
@@ -44,7 +44,7 @@ def file3():
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
 
-file_handel
+    file_handel('courbe3.txt')
 def file4():
     df = pd.read_csv(r"courbe4.txt", header=None)
     #print(df)
@@ -57,7 +57,7 @@ def file4():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
-file_handel("courbe4.txt")
+    file_handel("courbe4.txt")
 
 def menu():
     while True:
