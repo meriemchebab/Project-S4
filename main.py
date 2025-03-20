@@ -1,4 +1,5 @@
 import pandas as pd
+from plot import file_handel
 
 def file1():
     df = pd.read_csv(r"courbe1.txt", header=None)
@@ -8,11 +9,12 @@ def file1():
 
     Vmin = df[0].min()
     Vmax = df[0].max()
-
-    print(f"The maximum value of our file 1 is: {Vmax}")
-    print(f"The minimum value of our file 1 is: {Vmin}")
+    print(f"The maximum value of file 1 is: {Vmax}")
+    print(f"The minimum value of file 1 is: {Vmin}")
     print(f"The offset is :{Vmin}")
-
+    #if Vmax <0:
+# change the valeus 
+    file_handel("courbe1.txt")
 
 def file2():
     df = pd.read_csv(r"courbe2.txt", header=None)
@@ -26,7 +28,8 @@ def file2():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
-
+# same here 
+file_handel("courbe2.txt")
 
 def file3():
     df = pd.read_csv(r"courbe3.txt", header=None)
@@ -41,7 +44,7 @@ def file3():
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
 
-
+file_handel
 def file4():
     df = pd.read_csv(r"courbe4.txt", header=None)
     #print(df)
@@ -54,7 +57,7 @@ def file4():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
-
+file_handel("courbe4.txt")
 
 def menu():
     while True:
