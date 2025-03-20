@@ -1,9 +1,30 @@
 import pandas as pd
-from plot import file_handel
+import numpy as np
+import plotly.graph_objs as go
+
+def file_handel(file_name):
+# Read the file and create a list of degree values
+    with open(file_name, 'r') as file:
+        # Read all lines, strip whitespace, and convert valid numeric lines to floats
+        degree = [float(line.strip()) for line in file]
+
+    # Create the theta (angle) values as the indices of the degree list
+    theta = list(range(len(degree)))
+
+    # Create a polar plot
+    fig = go.Figure(
+        data=go.Scatterpolar(
+            r=degree,  # Radial values (the degree values from the file)
+            theta=theta,  # Angular values (indices of the degree list)
+            mode='lines',  # Plot as lines with markers
+            name='Sensor Data'  # Legend label
+        )
+    )
+    # Show the plot
+    fig.show()
 
 def file1():
     df = pd.read_csv(r"courbe1.txt", header=None)
-    #print(df)
 
     df[0] = pd.to_numeric(df[0], errors='coerce')  # to make sue we dont have a char in the file 
 
@@ -12,18 +33,18 @@ def file1():
     print(f"The maximum value of file 1 is: {Vmax}")
     print(f"The minimum value of file 1 is: {Vmin}")
     print(f"The offset is :{Vmin}")
-    if Vmax < 0:
+    
+    if Vmax < 0:  #we see it Vmax <0 to edit the offest
         df[0] -= Vmax
         NVmin = df[0].min()
-        print(f"the new offset is: {NVmin}")
-
-    #if Vmax <0:
-# change the valeus 
-    file_handel("courbe1.txt")
+        print(f"The new offset is: {NVmin}")
+        df.to_csv("New_courbe1.txt",header = False, index = False) #a new file that saves all the new val
+        file_handel("New_courbe1.txt") # draw the on with the edetied offeset 
+    else:
+        file_handel("courbe1.txt")  #if Vmax>=0 we draw the normal one 
 
 def file2():
     df = pd.read_csv(r"courbe2.txt", header=None)
-    #print(df)
 
     df[0] = pd.to_numeric(df[0], errors='coerce')  # to make sue we dont have a char in the file 
 
@@ -37,48 +58,53 @@ def file2():
     if Vmax < 0:
         df[0] -= Vmax
         NVmin = df[0].min()
-        print(f"the new offset is: {NVmin}")
-# same here 
-    file_handel("courbe2.txt")
+        print(f"The new offset is: {NVmin}")
+        df.to_csv("New_courbe2.txt",header = False, index = False)
+        file_handel("New_courbe2.txt")
+    else:
+        file_handel("courbe2.txt")
 
 def file3():
     df = pd.read_csv(r"courbe3.txt", header=None)
-    #print(df)
 
     df[0] = pd.to_numeric(df[0], errors='coerce')  # to make sue we dont have a char in the file 
 
     Vmin = df[0].min()
     Vmax = df[0].max()
 
-    print(f"The maximum value of file 2 is: {Vmax}")
-    print(f"The minimum value of file 2 is: {Vmin}")
+    print(f"The maximum value of file 3 is: {Vmax}")
+    print(f"The minimum value of file 3 is: {Vmin}")
     print(f"The offset is :{Vmin}")
     
     if Vmax < 0:
         df[0] -= Vmax
         NVmin = df[0].min()
-        print(f"the new offset is: {NVmin}")
+        print(f"The new offset is: {NVmin}")
+        df.to_csv("New_courbe3.txt",header = False, index = False)
+        file_handel("New_courbe3.txt")
+    else:
+        file_handel("courbe3.txt")
 
-    file_handel('courbe3.txt')
 def file4():
     df = pd.read_csv(r"courbe4.txt", header=None)
-    #print(df)
 
     df[0] = pd.to_numeric(df[0], errors='coerce')  # to make sue we dont have a char in the file 
 
     Vmin = df[0].min()
     Vmax = df[0].max()
 
-    print(f"The maximum value of file 2 is: {Vmax}")
-    print(f"The minimum value of file 2 is: {Vmin}")
+    print(f"The maximum value of file 4 is: {Vmax}")
+    print(f"The minimum value of file 4 is: {Vmin}")
     print(f"The offset is :{Vmin}")
     
     if Vmax < 0:
         df[0] -= Vmax
         NVmin = df[0].min()
-        print(f"the new offset is: {NVmin}")
-        
-    file_handel("courbe4.txt")
+        print(f"The new offset is: {NVmin}")
+        df.to_csv("New_courbe4.txt",header = False, index = False)
+        file_handel("New_courbe4.txt")
+    else:
+        file_handel("courbe4.txt")
 
 def menu():
     while True:
