@@ -1,14 +1,14 @@
-import pandas as pd
-import numpy as np
-import plotly.graph_objs as go
+import pandas as pd # reading and anylise the data
+import numpy as np #array manipulation
+import plotly.graph_objs as go # the liberary that will be used to creat the plot 
 
 def file_handel(file_name):
 # Read the file and create a list of degree values
     with open(file_name, 'r') as file:
-        # Read all lines, strip whitespace, and convert valid numeric lines to floats
+        # Read all lines
         degree = [float(line.strip()) for line in file]
 
-    # Create the theta (angle) values as the indices of the degree list
+    # Create the angle valeur[the index in the list]
     theta = list(range(len(degree)))
 
     # Create a polar plot
@@ -16,8 +16,8 @@ def file_handel(file_name):
         data=go.Scatterpolar(
             r=degree,  # Radial values (the degree values from the file)
             theta=theta,  # Angular values (indices of the degree list)
-            mode='lines',  # Plot as lines with markers
-            name='Sensor Data'  # Legend label
+            mode='lines',  # how we want to plot it
+            name='Sensor Data' 
         )
     )
     # Show the plot
