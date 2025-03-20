@@ -14,9 +14,9 @@ def file_handel(file_name):
     # Create a polar plot
     fig = go.Figure(
         data=go.Scatterpolar(
-            r=degree,  # Radial values (the degree values from the file)
-            theta=theta,  # Angular values (indices of the degree list)
-            mode='lines',  # Plot as lines with markers
+            r=degree,  # radial values (the degree values from the file)
+            theta=theta,  # angular values (indices of the degree list)
+            mode='lines',  # plot as lines with markers
             name='Sensor Data'  # Legend label
         )
     )
