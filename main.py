@@ -12,6 +12,11 @@ def file1():
     print(f"The maximum value of file 1 is: {Vmax}")
     print(f"The minimum value of file 1 is: {Vmin}")
     print(f"The offset is :{Vmin}")
+    if Vmax < 0:
+        df[0] -= Vmax
+        NVmin = df[0].min()
+        print(f"the new offset is: {NVmin}")
+
     #if Vmax <0:
 # change the valeus 
     file_handel("courbe1.txt")
@@ -28,6 +33,11 @@ def file2():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
+    
+    if Vmax < 0:
+        df[0] -= Vmax
+        NVmin = df[0].min()
+        print(f"the new offset is: {NVmin}")
 # same here 
     file_handel("courbe2.txt")
 
@@ -43,6 +53,11 @@ def file3():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
+    
+    if Vmax < 0:
+        df[0] -= Vmax
+        NVmin = df[0].min()
+        print(f"the new offset is: {NVmin}")
 
     file_handel('courbe3.txt')
 def file4():
@@ -57,6 +72,12 @@ def file4():
     print(f"The maximum value of file 2 is: {Vmax}")
     print(f"The minimum value of file 2 is: {Vmin}")
     print(f"The offset is :{Vmin}")
+    
+    if Vmax < 0:
+        df[0] -= Vmax
+        NVmin = df[0].min()
+        print(f"the new offset is: {NVmin}")
+        
     file_handel("courbe4.txt")
 
 def menu():
