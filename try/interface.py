@@ -8,19 +8,14 @@ from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWid
 
 class Myfig(FigureCanvas):
     def __init__(self,parent =None):
-        self.fig= Figure(figsize=[2,4]) # here u create the plot figure
-        self.ax = self.fig.add_subplot(111)
+        self.fig= Figure(figsize=[4,4]) # here u create the plot figure
+        
         
         super().__init__(self.fig)
         if parent :
             self.setParent(parent)
         
-    def plot_data(self, x, y):
-        """Method to plot data on the figure."""
-        self.ax.clear()  # Clear previous plot
-        self.ax.plot(x, y, label="Sample Data", color="b")
-        self.ax.legend()
-        self.draw() 
+    
 
 
         
@@ -41,8 +36,7 @@ class Window(QMainWindow):
     def __init__(self):
         super().__init__()
         main= QWidget()
-        plot = Myfig(self)
-        plot.plot_data([2,2,2,2,2] ,[3,4,5,7,8])
+        
 
         
         button =Button( "meee",self)
@@ -52,7 +46,7 @@ class Window(QMainWindow):
         layout = QHBoxLayout()
         layout.addWidget(button)
         layout.addWidget(label)
-        layout.addWidget(plot)
+        #layout.addWidget(plot)
         main.setLayout(layout)
         self.setCentralWidget(main)
     
