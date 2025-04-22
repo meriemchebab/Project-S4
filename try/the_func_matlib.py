@@ -76,7 +76,39 @@ def Afficher(plan_e_2d, plan_h_2d, theta, same=True): # the affichage fonction
 
     plt.tight_layout()
     plt.show()
+    
+def plot_3d(data):
+    half_length = len(data) // 2
+    plan_e = np.array(data[:half_length])
+    plan_h = np.array(data[half_length:])
 
+    # Smooth data
+    plan_h_db = savgol_filter(plan_e, 11, 2)
+    plan_e_db = savgol_filter(plan_h, 11, 2)
+
+    # Convert theta to radians
+    theta = np.linspace(0, 2 * np.pi, half_length)
+    phi = np.linspace(0, np.pi, half_length)
+    theta, phi = np.meshgrid(theta, phi)
+
+    # Fake 3D radial values by averaging E & H
+    r = (np.outer(plan_h_db, np.ones_like(plan_e_db)) +
+         np.outer(np.ones_like(plan_h_db), plan_e_db)) / 2
+
+    # Convert spherical to cartesian
+    X = r * np.sin(phi) * np.cos(theta)
+    Y = r * np.sin(phi) * np.sin(theta)
+    Z = r * np.cos(phi)
+
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    surf = ax.plot_surface(X, Y, Z, cmap='plasma', linewidth=0.5)
+
+    ax.set_title('3D Radiation Pattern (E + H averaged)', fontsize=14)
+    fig.colorbar(surf, shrink=0.6, aspect=10)
+    plt.show()
+    
 # Example of a main 
 data = file_reader("3Dcourbe4.txt")
 plot_2d(data, max=False, same=True)
+plot_3d(data)
