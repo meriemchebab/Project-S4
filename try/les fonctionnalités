@@ -90,75 +90,72 @@ class Myfig(FigureCanvas):
 
 
 
-//Lecture de plusieurs fichiers et différents formats (txt, ATN, CSV)//
+//Lecture Multiformat de Fichiers Numériques avec Threading en Python
 import csv
+import pandas as pd
+import threading
 
-class fileReader():
-    def __init__(self, file_name):
-        self.file_name = file_name
+def read_file(file_name):
+    """
+    Lit un fichier (.txt, .atn, .csv, .xlsx) et retourne une liste de float.
+    """
+    extension = file_name.split('.')[-1].lower()
 
-    def read_file(self):
-        extension = self.file_name.split('.')[-1].lower()
-        if extension == 'txt' or extension == 'atn':
-            return self.read_text_file()
-        elif extension == 'csv':
-            return self.read_csv_file()
-        else:
-            raise ValueError("Unsupported file format")
+    if extension in ['txt', 'atn']:
+        return read_text_file(file_name)
+    elif extension == 'csv':
+        return read_csv_file(file_name)
+    elif extension == 'xlsx':
+        return read_excel_file(file_name)
+    else:
+        raise ValueError(" Format de fichier non supporté.")
 
-    def read_text_file(self):
-        degree = []
-        with open(self.file_name, 'r') as file:
-            for line in file:
-                try:
-                    lin = float(line)
-                    degree.append(lin)
-                except ValueError:
-                    pass
-        return degree
+def read_text_file(file_name):
+    data = []
+    with open(file_name, 'r') as file:
+        for line in file:
+            try:
+                value = float(line.strip())
+                data.append(value)
+            except ValueError:
+                continue
+    return data
 
-    def read_csv_file(self):
-        degree = []
-        with open(self.file_name, 'r') as file:
-            reader = csv.reader(file)
-            for row in reader:
-                try:
-                    lin = float(row[0])  # Assuming data is in the first column
-                    degree.append(lin)
-                except ValueError:
-                    pass
-        return degree
-//Gestion de l'offset et de l'échelle modifiables// 
-from PySide6.QtWidgets import QLineEdit
+def read_csv_file(file_name):
+    data = []
+    with open(file_name, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            try:
+                value = float(row[0])
+                data.append(value)
+            except (ValueError, IndexError):
+                continue
+    return data
 
-class Window(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        main = QWidget()
-
-        self.plot_widget = Myfig(self)
-        Button = file_Button("open", self)
-        scale_input = QLineEdit(self)  # innput field for scale
-        offset_input = QLineEdit(self)  # input field for offset
-
-        layout = QHBoxLayout()
-        layout.addWidget(Button)
-        layout.addWidget(scale_input)
-        layout.addWidget(offset_input)
-        layout.addWidget(self.plot_widget)
-        main.setLayout(layout)
-        self.setCentralWidget(main)
-
-        Button.clicked.connect(lambda: self.plot_widget.Polar_2d(Button.file.read_file()))
-        scale_input.textChanged.connect(lambda: self.update_plot(scale_input.text(), offset_input.text()))  # uppdate scale
-        offset_input.textChanged.connect(lambda: self.update_plot(scale_input.text(), offset_input.text()))  # updat offset
-
-    def update_plot(self, scale, offset):
+def read_excel_file(file_name):
+    data = []
+    df = pd.read_excel(file_name)
+    for value in df.iloc[:, 0]:  # première colonne
         try:
-            scale = float(scale)
-            offset = float(offset)
-            data = self.plot_widget.file.read_file()
-            data = [d * scale + offset for d in data]  # Apply scale and offset
-            self.plot_widget.Polar_2d(data)
+            data.append(float(value))
         except ValueError:
-            pass
+            continue
+    return data
+
+def threaded_read(file_name):
+    try:
+        data = read_file(file_name)
+        print(f"{file_name} lu avec succès . Nombre de valeurs : {len(data)}")
+    except Exception as e:
+        print(f"Erreur dans {file_name}  : {e}")
+
+def read_multiple_files(file_list):
+    threads = []
+    for file_name in file_list:
+        thread = threading.Thread(target=threaded_read, args=(file_name,))
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
