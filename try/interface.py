@@ -1,10 +1,13 @@
 import matplotlib.pyplot as plt  # Correctly import pyplot
 from matplotlib.figure import Figure 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import sys
-from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton
+from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton,QHBoxLayout
+ 
 import numpy as np
+
+
 
 class Myfig(FigureCanvas):
     def __init__(self, parent=None):
@@ -27,11 +30,22 @@ class Window(QMainWindow):#main window to see the app
         self.saveButton = button("open", self)
         self.plot2D = button("plot", self)
         self.normal = QRadioButton("normelize",self)
+        
+        self.toolbar = NavigationToolbar(self.plot_widget, self)
+        
+
+        
+        
+        button_row = QHBoxLayout()
+        button_row.addWidget(self.saveButton)
+        button_row.addWidget(self.plot2D)
+        button_row.addWidget(self.normal)
+
+        
 
         layout = QVBoxLayout()
-        layout.addWidget(self.saveButton, stretch=0)
-        layout.addWidget(self.plot2D, stretch=0)
-        layout.addWidget(self.normal, stretch=0)
+        layout.addLayout(button_row)
+        layout.addWidget(self.toolbar)
         layout.addWidget(self.plot_widget, stretch=1)
           # Add the plot widget to the layout
         main.setLayout(layout)
