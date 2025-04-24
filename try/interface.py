@@ -3,7 +3,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
 import sys
-from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWidget,QHBoxLayout,QFileDialog
+from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton
 import numpy as np
 
 class Myfig(FigureCanvas):
@@ -26,11 +26,14 @@ class Window(QMainWindow):#main window to see the app
         self.plot_widget = Myfig(self)  # Create an instance of Myfig
         self.saveButton = button("open", self)
         self.plot2D = button("plot", self)
+        self.normal = QRadioButton("normelize",self)
 
-        layout = QHBoxLayout()
-        layout.addWidget(self.saveButton)
-        layout.addWidget(self.plot2D)
-        layout.addWidget(self.plot_widget)  # Add the plot widget to the layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.saveButton, stretch=0)
+        layout.addWidget(self.plot2D, stretch=0)
+        layout.addWidget(self.normal, stretch=0)
+        layout.addWidget(self.plot_widget, stretch=1)
+          # Add the plot widget to the layout
         main.setLayout(layout)
         self.setCentralWidget(main)
 
@@ -38,6 +41,9 @@ class Window(QMainWindow):#main window to see the app
         self.saveButton.clicked.connect(self.read_file)
         # plot the data
         self.plot2D.clicked.connect(self.plot_2D)
+        # the offset 
+        
+        self.normal.toggled.connect(self.plot_2D)
 
         self.data = []  # Store the data for plotting
 
@@ -65,39 +71,47 @@ class Window(QMainWindow):#main window to see the app
             
 
     def plot_2D(self):
-        if not self.data or len(self.data) < 720:
+        if not self.data :
             print("Insufficient data to plot.")
             return
-
+        
         
         h_plane_db = np.array(self.data[:360])
         e_plane_db = np.array(self.data[360:720])
+        
+        # do the offset if the smooth button is clicked
+        if self.normal.isChecked():
+            h_plane_db = self.normelize(h_plane_db)
+            e_plane_db = self.normelize(e_plane_db)
 
+          
         # Create angle array
         phi = np.radians(np.arange(360))  
 
         
-        self.plot_widget.fig.clear()
+        self.plot_widget.fig.clf() #this clear all the subplots 
+        
 
         # Create polar subplots
-        fig_polar, axes = self.plot_widget.fig.subplots(1, 2, subplot_kw={'projection': 'polar'})
+        ax1 = self.plot_widget.fig.add_subplot(1, 2, 1, projection='polar')
+        ax2 = self.plot_widget.fig.add_subplot(1, 2, 2, projection='polar')
 
-        # H-plane plot
-        axes[0].plot(phi, h_plane_db, label='H-plane', color='blue')
-        axes[0].set_title('H-plane Pattern (dB)')
-        axes[0].legend()
+        # 3. Plot H-plane
+        ax1.plot(phi, h_plane_db, label='H-plane', color='blue')
+        ax1.set_title('H-plane Pattern (dB)')
+        ax1.legend()
 
-        # E-plane plot
-        axes[1].plot(phi, e_plane_db, label='E-plane', color='red')
-        axes[1].set_title('E-plane Pattern (dB)')
-        axes[1].legend()
+        # 4. Plot E-plane
+        ax2.plot(phi, e_plane_db, label='E-plane', color='red')
+        ax2.set_title('E-plane Pattern (dB)')
+        ax2.legend()
 
-        # Set the title and layout
-        fig_polar.suptitle('2D Radiation Patterns (Smoothed in dB)')
-        fig_polar.tight_layout()
-
-        # Draw the updated figure on the canvas
+        # 5. Redraw the canvas
         self.plot_widget.draw()
+    def normelize(self, dataN):
+
+        data  = dataN - np.max(dataN)
+        return data
         
 app = QApplication(sys.argv)
 window = Window()
