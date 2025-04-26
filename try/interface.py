@@ -1,9 +1,9 @@
-import matplotlib.pyplot as plt  # Correctly import pyplot
+  # Correctly import pyplot
 from matplotlib.figure import Figure 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import sys
-from PySide6.QtWidgets import QLabel ,QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton,QHBoxLayout
+from PySide6.QtWidgets import QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton,QHBoxLayout
  
 import numpy as np
 
@@ -27,7 +27,7 @@ class Window(QMainWindow):#main window to see the app
         main = QWidget()
 
         self.plot_widget = Myfig(self)  # Create an instance of Myfig
-        self.saveButton = button("open", self)
+        self.readButton = button("open", self)
         self.plot2D = button("plot", self)
         self.normal = QRadioButton("normelize",self)
         
@@ -37,7 +37,7 @@ class Window(QMainWindow):#main window to see the app
         
         
         button_row = QHBoxLayout()
-        button_row.addWidget(self.saveButton)
+        button_row.addWidget(self.readButton)
         button_row.addWidget(self.plot2D)
         button_row.addWidget(self.normal)
 
@@ -52,7 +52,7 @@ class Window(QMainWindow):#main window to see the app
         self.setCentralWidget(main)
 
         # when open file button:
-        self.saveButton.clicked.connect(self.read_file)
+        self.readButton.clicked.connect(self.read_file)
         # plot the data
         self.plot2D.clicked.connect(self.plot_2D)
         # the offset 
