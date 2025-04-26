@@ -68,30 +68,45 @@ class Window(QMainWindow):#main window to see the app
         if dialog.exec():
             file_name = dialog.selectedFiles()[0]  # Get the selected file
 
-            degree = []
-            try:
-                with open(file_name, 'r') as file:
-                    for line in file:
-                        try:
-                            lin = float(line)
-                            degree.append(lin)
-                        except :
-                            pass
-                self.data = degree  # Store the data for plotting
-            except FileNotFoundError:
-                print("File not found.")
-            except Exception as e:
-                print(f"An error occurred: {e}")
+            
+            self.h_plane = []
+            self.e_plane = []
+            current_list = self.h_plane
+            header_skipped = False
+
+            with open(file_name, 'r') as file:
+                for line in file:
+                    line = line.strip()
+
+                    # Skip initial header lines if not yet skipped
+                    if not header_skipped:
+                        if line.replace('.', '', 1).replace('-', '', 1).isdigit():
+                            # Line looks like a number => start real reading
+                            header_skipped = True
+                        else:
+                            continue  # Still in header part, skip
+                    
+                    # Now trying to read data
+                    try:
+                        num = float(line)
+                        current_list.append(num)
+                    except ValueError:
+                        # When non-number comes DURING reading, we switch
+                        if current_list is self.h_plane:
+                            current_list = self.e_plane  # Switch to E-plane
+                        continue
+
             
 
     def plot_2D(self):
-        if not self.data :
+        if not (self.h_plane or self.h_plane) :
+                            
             print("Insufficient data to plot.")
             return
         
         
-        h_plane_db = np.array(self.data[:360])
-        e_plane_db = np.array(self.data[360:720])
+        h_plane_db = np.array(self.h_plane)
+        e_plane_db = np.array(self.e_plane)
         
         # do the offset if the smooth button is clicked
         if self.normal.isChecked():
@@ -100,8 +115,8 @@ class Window(QMainWindow):#main window to see the app
 
           
         # Create angle array
-        phi = np.radians(np.arange(360))  
-
+        phi_h = np.radians(np.arange(len(h_plane_db)))  
+        phi_e = np.radians(np.arange(len(e_plane_db)))
         
         self.plot_widget.fig.clf() #this clear all the subplots 
         
@@ -111,12 +126,14 @@ class Window(QMainWindow):#main window to see the app
         ax2 = self.plot_widget.fig.add_subplot(1, 2, 2, projection='polar')
 
         # 3. Plot H-plane
-        ax1.plot(phi, h_plane_db, label='H-plane', color='blue')
+        ax1.plot(phi_h, h_plane_db, label='H-plane', color='blue')
         ax1.set_title('H-plane Pattern (dB)')
+        ax1.set_theta_zero_location('N')
+        ax1.set_theta_direction(-1)
         ax1.legend()
 
         # 4. Plot E-plane
-        ax2.plot(phi, e_plane_db, label='E-plane', color='red')
+        ax2.plot(phi_e, e_plane_db, label='E-plane', color='red')
         ax2.set_title('E-plane Pattern (dB)')
         ax2.legend()
 
