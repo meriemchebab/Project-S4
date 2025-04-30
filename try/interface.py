@@ -1,151 +1,144 @@
-  # Correctly import pyplot
 from matplotlib.figure import Figure 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 import sys
-from PySide6.QtWidgets import QPushButton, QApplication,QMainWindow,QWidget,QVBoxLayout,QFileDialog,QRadioButton,QHBoxLayout
- 
+from PySide6.QtWidgets import (QPushButton, QApplication, QMainWindow, 
+                              QWidget, QVBoxLayout, QFileDialog, 
+                              QRadioButton, QHBoxLayout)
 import numpy as np
-
-
 
 class Myfig(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=[12, 7])  # Create the plot figure , here you will see the plot 
+        self.fig = Figure(figsize=[12, 7])
         super().__init__(self.fig)
         if parent:
             self.setParent(parent)
+        # Initialize axes as None (we'll create them when needed)
+        self.ax1 = None
+        self.ax2 = None
     
 class button(QPushButton):
     def __init__(self, txt, parent=None):
         super().__init__(txt, parent)  
         self.txt = txt
 
-class Window(QMainWindow):#main window to see the app 
+class Window(QMainWindow):
     def __init__(self):
         super().__init__()
         main = QWidget()
 
-        self.plot_widget = Myfig(self)  # Create an instance of Myfig
+        self.plot_widget = Myfig(self)
         self.readButton = button("open", self)
         self.plot2D = button("plot", self)
-        self.normal = QRadioButton("normelize",self)
+        self.normal = QRadioButton("normelize", self)
         
         self.toolbar = NavigationToolbar(self.plot_widget, self)
-        
-
-        
         
         button_row = QHBoxLayout()
         button_row.addWidget(self.readButton)
         button_row.addWidget(self.plot2D)
         button_row.addWidget(self.normal)
 
-        
-
         layout = QVBoxLayout()
         layout.addLayout(button_row)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.plot_widget, stretch=1)
-          # Add the plot widget to the layout
         main.setLayout(layout)
         self.setCentralWidget(main)
 
-        # when open file button:
         self.readButton.clicked.connect(self.read_file)
-        # plot the data
         self.plot2D.clicked.connect(self.plot_2D)
-        # the offset 
-        
         self.normal.toggled.connect(self.plot_2D)
 
-        self.data = []  # Store the data for plotting
+        self.data = []
+        self.h_plane = []
+        self.e_plane = []
 
     def read_file(self):
         dialog = QFileDialog()
-        dialog.setFileMode(QFileDialog.AnyFile)  # on file each time
-        dialog.setNameFilter("Text Files (*.txt);;atn files (*.atn);; csv (*.csv)")  # 🧽 Filters
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setNameFilter("Text Files (*.txt);;atn files (*.atn);; csv (*.csv)")
         if dialog.exec():
-            file_name = dialog.selectedFiles()[0]  # Get the selected file
-
+            file_name = dialog.selectedFiles()[0]
             
             self.h_plane = []
             self.e_plane = []
-            current_list = self.h_plane
-            header_skipped = False
+
+            reading_started = False
+            reading_h_plane = True
 
             with open(file_name, 'r') as file:
                 for line in file:
                     line = line.strip()
-
-                    # Skip initial header lines if not yet skipped
-                    if not header_skipped:
-                        if line.replace('.', '', 1).replace('-', '', 1).isdigit():
-                            # Line looks like a number => start real reading
-                            header_skipped = True
-                        else:
-                            continue  # Still in header part, skip
                     
-                    # Now trying to read data
-                    try:
-                        num = float(line)
-                        current_list.append(num)
-                    except ValueError:
-                        # When non-number comes DURING reading, we switch
-                        if current_list is self.h_plane:
-                            current_list = self.e_plane  # Switch to E-plane
+                    if not line:
                         continue
 
-            
+                    try:
+                        value = float(line)
+                        reading_started = True
+
+                        if reading_h_plane:
+                            self.h_plane.append(value)
+                        else:
+                            self.e_plane.append(value)
+
+                    except ValueError:
+                        if reading_started:
+                            reading_h_plane = False
+                        continue
 
     def plot_2D(self):
-        if not (self.h_plane or self.h_plane) :
-                            
+        if not (self.h_plane or self.e_plane):
             print("Insufficient data to plot.")
             return
-        
         
         h_plane_db = np.array(self.h_plane)
         e_plane_db = np.array(self.e_plane)
         
-        # do the offset if the smooth button is clicked
-        if self.normal.isChecked():
-            h_plane_db = self.normelize(h_plane_db)
-            e_plane_db = self.normelize(e_plane_db)
+        if self.normal.isChecked()  :
+            if self.h_plane :
+                h_plane_db = self.normelize(h_plane_db)
+            if self.e_plane :
+                e_plane_db = self.normelize(e_plane_db)
 
-          
-        # Create angle array
         phi_h = np.radians(np.arange(len(h_plane_db)))  
         phi_e = np.radians(np.arange(len(e_plane_db)))
         
-        self.plot_widget.fig.clf() #this clear all the subplots 
+        # Instead of clf(), clear the existing axes if they exist
+        if self.plot_widget.ax1 is not None:
+            self.plot_widget.ax1.clear()
+        else:
+            self.plot_widget.ax1 = self.plot_widget.fig.add_subplot(1, 2, 1, projection='polar')
         
+        if self.plot_widget.ax2 is not None:
+            self.plot_widget.ax2.clear()
+        else:
+            self.plot_widget.ax2 = self.plot_widget.fig.add_subplot(1, 2, 2, projection='polar')
 
-        # Create polar subplots
-        ax1 = self.plot_widget.fig.add_subplot(1, 2, 1, projection='polar')
-        ax2 = self.plot_widget.fig.add_subplot(1, 2, 2, projection='polar')
+        # Plot H-plane
+        self.plot_widget.ax1.plot(phi_h, h_plane_db, label='H-plane', color='blue')
+        self.plot_widget.ax1.set_title('H-plane Pattern (dB)')
+        self.plot_widget.ax1.set_theta_zero_location('N')
+        self.plot_widget.ax1.set_theta_direction(-1)
+        self.plot_widget.ax1.legend()
 
-        # 3. Plot H-plane
-        ax1.plot(phi_h, h_plane_db, label='H-plane', color='blue')
-        ax1.set_title('H-plane Pattern (dB)')
-        ax1.set_theta_zero_location('N')
-        ax1.set_theta_direction(-1)
-        ax1.legend()
+        # Plot E-plane
+        self.plot_widget.ax2.plot(phi_e, e_plane_db, label='E-plane', color='red')
+        self.plot_widget.ax2.set_title('E-plane Pattern (dB)')
+        self.plot_widget.ax2.legend()
 
-        # 4. Plot E-plane
-        ax2.plot(phi_e, e_plane_db, label='E-plane', color='red')
-        ax2.set_title('E-plane Pattern (dB)')
-        ax2.legend()
-
-        # 5. Redraw the canvas
+        # Redraw the canvas
         self.plot_widget.draw()
-    def normelize(self, dataN):
+        
+        # Push the current view to the navigation stack
+        self.toolbar.push_current()
 
-        data  = dataN - np.max(dataN)
+    def normelize(self, dataN):
+        data = dataN - np.max(dataN)
         return data
         
 app = QApplication(sys.argv)
 window = Window()
 window.show()
 app.exec()
-
