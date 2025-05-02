@@ -137,8 +137,24 @@ class Window(QMainWindow):
     def normelize(self, dataN):
         data = dataN - np.max(dataN)
         return data
-        
+
+def load_stylesheet(app, qss_file_path):
+    """Load and apply the QSS stylesheet."""
+    try:
+        with open(qss_file_path, "r") as file:
+            app.setStyleSheet(file.read())
+    except FileNotFoundError:
+        print(f"Stylesheet file not found: {qss_file_path}")
+    except Exception as e:
+        print(f"An error occurred while loading the stylesheet: {e}")
+
+# Main application setup
 app = QApplication(sys.argv)
+
+# Load and apply the QSS stylesheet
+qss_file_path = r"C:\Users\hp\Desktop\Project\Project-S4\try\style.qss"
+load_stylesheet(app, qss_file_path)
+
 window = Window()
 window.show()
 app.exec()

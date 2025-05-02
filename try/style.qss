@@ -1,0 +1,213 @@
+/*Copyright (c) DevSec Studio. All rights reserved.
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+/* Modern UI with Shades of Blue */
+
+/*-----QWidget-----*/
+QWidget {
+    background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 rgb(85, 192, 200), stop:1 #2a5298); /* Blue gradient */
+    color: #ffffff;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 12px;
+}
+
+/*-----QLabel-----*/
+QLabel {
+    background-color: transparent;
+    color: #ffffff;
+}
+
+/*-----QPushButton-----*/
+QPushButton {
+    background-color: #2a5298; /* Blue */
+    color: #ffffff;
+    border: 1px solid #1e3c72;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #1e3c72; /* Darker Blue */
+    border: 1px solid #2a5298;
+}
+
+QPushButton:pressed {
+    background-color:rgb(214, 50, 50); /* Even Darker Blue */
+    border: 1px solid rgb(255, 190, 242);
+}
+
+/*-----QToolButton-----*/
+QToolButton {
+    background-color: #2a5298;
+    color: #ffffff;
+    border: 1px solid #1e3c72;
+    border-radius: 8px;
+    padding: 6px;
+}
+
+QToolButton:hover {
+    background-color: #1e3c72;
+}
+
+QToolButton:pressed {
+    background-color: #163a5f;
+}
+
+/*-----QMenuBar-----*/
+QMenuBar {
+    background-color: #1e3c72;
+    color: #ffffff;
+    border: none;
+}
+
+QMenuBar::item {
+    background-color: transparent;
+    padding: 4px 10px;
+}
+
+QMenuBar::item:selected {
+    background-color: #2a5298;
+    border-radius: 4px;
+}
+
+/*-----QMenu-----*/
+QMenu {
+    background-color: #1e3c72;
+    color: #ffffff;
+    border: 1px solid #2a5298;
+}
+
+QMenu::item {
+    padding: 6px 20px;
+}
+
+QMenu::item:selected {
+    background-color: #2a5298;
+}
+
+/*-----QLineEdit-----*/
+QLineEdit {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #2a5298;
+    border-radius: 4px;
+    padding: 4px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #1e3c72;
+}
+
+/*-----QRadioButton-----*/
+QRadioButton {
+    color: #ffffff;
+}
+
+QRadioButton::indicator {
+    width: 16px; /* Explicit size for visibility */
+    height: 16px;
+    border: 2px solid #2a5298;
+    border-radius: 8px;
+    background-color: transparent;
+}
+
+QRadioButton::indicator:checked {
+    background-color:rgb(255, 49, 49);
+    border: 2px solid rgb(252, 174, 174);
+}
+
+/*-----QCheckBox-----*/
+QCheckBox {
+    color: #ffffff;
+}
+
+QCheckBox::indicator {
+    width: 16px; /* Explicit size for visibility */
+    height: 16px;
+    border: 2px solid #2a5298;
+    background-color: transparent;
+}
+
+QCheckBox::indicator:checked {
+    background-color:rgb(255, 49, 49);
+    border: 2px solid rgb(252, 174, 174);
+}
+
+/*-----QSlider-----*/
+QSlider::groove:horizontal {
+    background-color: #2a5298;
+    height: 6px;
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background-color: #1e3c72;
+    width: 14px;
+    height: 14px;
+    border-radius: 7px;
+    border: 1px solid #2a5298;
+}
+
+QSlider::handle:horizontal:hover {
+    background-color: #2a5298;
+}
+
+/*-----QProgressBar-----*/
+QProgressBar {
+    background-color: #1e3c72;
+    border: 1px solid #2a5298;
+    border-radius: 4px;
+    text-align: center;
+    color: #ffffff;
+}
+
+QProgressBar::chunk {
+    background-color: #2a5298;
+    border-radius: 4px;
+}
+
+/*-----QScrollBar-----*/
+QScrollBar:horizontal {
+    background-color: #1e3c72;
+    height: 12px;
+    border: none;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: #2a5298;
+    border-radius: 6px;
+}
+
+QScrollBar:vertical {
+    background-color: #1e3c72;
+    width: 12px;
+    border: none;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #2a5298;
+    border-radius: 6px;
+}
+
+
