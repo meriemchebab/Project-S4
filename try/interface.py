@@ -4,9 +4,9 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 import sys
 from PySide6.QtWidgets import (QPushButton, QApplication, QMainWindow, 
                               QWidget, QVBoxLayout, QFileDialog, 
-                              QRadioButton, QHBoxLayout)
+                              QRadioButton, QHBoxLayout,QSlider)
 import numpy as np
-
+from PySide6.QtCore import Qt
 class Myfig(FigureCanvas):
     def __init__(self, parent=None):
         self.fig = Figure(figsize=[12, 7])
@@ -17,7 +17,7 @@ class Myfig(FigureCanvas):
         self.ax1 = None
         self.ax2 = None
     
-class button(QPushButton):
+class Button(QPushButton):
     def __init__(self, txt, parent=None):
         super().__init__(txt, parent)  
         self.txt = txt
@@ -28,19 +28,24 @@ class Window(QMainWindow):
         main = QWidget()
 
         self.plot_widget = Myfig(self)
-        self.readButton = button("open", self)
-        self.plot2D = button("plot", self)
+        self.readButton = Button("open", self)
+        self.plot2D = Button("plot", self)
         self.normal = QRadioButton("normelize", self)
         
         self.toolbar = NavigationToolbar(self.plot_widget, self)
-        
-        button_row = QHBoxLayout()
-        button_row.addWidget(self.readButton)
-        button_row.addWidget(self.plot2D)
-        button_row.addWidget(self.normal)
+        self.slider = QSlider()
+        self.slider.setMaximum(6)
+        self.slider.setMinimum(1)
+        self.slider.setOrientation(Qt.Horizontal) 
+
+        Button_row = QHBoxLayout()
+        Button_row.addWidget(self.readButton)
+        Button_row.addWidget(self.plot2D)
+        Button_row.addWidget(self.normal)
 
         layout = QVBoxLayout()
-        layout.addLayout(button_row)
+        layout.addLayout(Button_row)
+        layout.addWidget(self.slider)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.plot_widget, stretch=1)
         main.setLayout(layout)
@@ -139,7 +144,7 @@ class Window(QMainWindow):
         return data
 
 def load_stylesheet(app, qss_file_path):
-    """Load and apply the QSS stylesheet."""
+    
     try:
         with open(qss_file_path, "r") as file:
             app.setStyleSheet(file.read())
@@ -151,8 +156,9 @@ def load_stylesheet(app, qss_file_path):
 # Main application setup
 app = QApplication(sys.argv)
 
-# Load and apply the QSS stylesheet
+
 qss_file_path = r"C:\Users\hp\Desktop\Project\Project-S4\try\style.qss"
+
 load_stylesheet(app, qss_file_path)
 
 window = Window()
