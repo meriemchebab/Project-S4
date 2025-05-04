@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import mplcursors
 from scipy.signal import savgol_filter
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.signal import find_peaks
 
 
 def file_reader(file_name): #to read the file 
@@ -67,6 +68,65 @@ def plot_2d(values, max=True, same=True):  # to draw the graph
         else:
             Afficher_2d(plan_e_filtered, plan_h_filtered, theta_rad, same=False)
 
+#function lobe here
+def highlight_lobes_lines(ax, theta, data, label_prefix=''): #to have the lobes colored
+
+    peaks, _ = find_peaks(data)
+    peak_values = data[peaks]
+
+    if len(peak_values) == 0:
+        print(f"No peaks found in {label_prefix}")
+        return
+
+    delta_theta = theta[1] - theta[0]
+    window_degrees = 5
+    window_size = int(window_degrees / (360 / len(theta)))
+
+    def plot_lobe(idx, color, label, annotation=None):
+        idx_start = max(0, idx - window_size)
+        idx_end = min(len(theta), idx + window_size + 1)
+        highlight_mask = np.full_like(data, np.nan)
+        highlight_mask[idx_start:idx_end] = data[idx_start:idx_end]
+        ax.plot(theta, highlight_mask, color=color, linewidth=2, label=label)
+
+        if annotation:
+            ax.annotate(
+                annotation,
+                xy=(theta[idx], data[idx]),
+                xytext=(theta[idx], data[idx] + 3),
+                arrowprops=dict(arrowstyle='->', color=color),
+                ha='center',
+                fontsize=10,
+                color=color,
+                bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.6)
+            )
+
+    # Main lobe
+    main_idx = peaks[np.argmax(peak_values)]
+    plot_lobe(main_idx, 'green', f'{label_prefix} Main Lobe', 'Main Lobe')
+
+    # Secondary lobes — plot all, but annotate only once
+    secondary_label = f'{label_prefix} Secondary Lobes'
+    secondary_annotated = False
+    for idx in peaks:
+        if idx == main_idx:
+            continue
+        plot_lobe(idx, 'orange', secondary_label if not secondary_annotated else None,
+                  'Secondary Lobe' if not secondary_annotated else None)
+        secondary_annotated = True
+
+    # Back lobe
+    back_angle = (theta[main_idx] + np.pi) % (2 * np.pi)
+    closest_idx = np.argmin(np.abs(theta - back_angle))
+    plot_lobe(closest_idx, 'purple', f'{label_prefix} Back Lobe', 'Back Lobe')
+
+    # Clean legend
+    handles, labels = ax.get_legend_handles_labels()
+    unique = dict(zip(labels, handles))
+    ax.legend(unique.values(), unique.keys(), loc='lower right')
+
+#to here the fucton 
+
 
 def Afficher_2d(plan_e_2d, plan_h_2d, theta, same=True): #affichage fonction
     fig, ax = None, None
@@ -74,12 +134,16 @@ def Afficher_2d(plan_e_2d, plan_h_2d, theta, same=True): #affichage fonction
     if same: #si les deux graphe in the same plot
         # Create the same plot
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+
         ax.plot(theta, plan_e_2d, label='E-plane', color='blue')
         ax.plot(theta, plan_h_2d, label='H-plane', color='red')
+
+        highlight_lobes_lines(ax, theta, plan_e_2d, label_prefix='E-plane')#u do the call for e 
+        highlight_lobes_lines(ax, theta, plan_h_2d, label_prefix='H-plane')#the call of h
         ax.set_theta_direction(-1)
         ax.set_theta_offset(np.pi / 2)
-        ax.set_title('Polar Plot - Combined')
-        ax.legend(loc='upper right')
+        ax.set_title('Polar Plot - Combined',x=0.2, y=1.05)
+        ax.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
         fig.set_size_inches(6, 6)
 
         #~~~~form here (to have the curceur thing)
@@ -120,16 +184,22 @@ def Afficher_2d(plan_e_2d, plan_h_2d, theta, same=True): #affichage fonction
         fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': 'polar'}, figsize=(12, 6))
 
         ax1.plot(theta, plan_e_2d, label='E-plane', color='blue')
-        ax1.set_title("E-plane Pattern")
+
+        highlight_lobes_lines(ax1, theta, plan_e_2d, label_prefix='E-plane')#call for e 
+
+        ax1.set_title("E-plane Pattern",x=0.2, y=1.05)
         ax1.set_theta_direction(-1)
         ax1.set_theta_offset(np.pi / 2)
-        ax1.legend(loc='upper right')
+        ax1.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
 
         ax2.plot(theta, plan_h_2d, label='H-plane', color='red')
-        ax2.set_title("H-plane Pattern")
+
+        highlight_lobes_lines(ax2, theta, plan_h_2d, label_prefix='H-plane')# call do h
+
+        ax2.set_title("H-plane Pattern",x=0.2, y=1.05)
         ax2.set_theta_direction(-1)
         ax2.set_theta_offset(np.pi / 2)
-        ax2.legend(loc='upper right')
+        ax2.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
 
         fig.suptitle("2D Radiation Patterns - Separate", fontsize=16)
 
@@ -223,6 +293,6 @@ def plot_3d(data, max=True): #3d code
     plt.show()
 
 # Example of a main 
-data = file_reader("3Dcourbe4.txt")
+data = file_reader("3Dcourbe1.txt")
 plot_2d(data, max=True , same=True)
 #plot_3d(data, False)
