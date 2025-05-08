@@ -120,24 +120,26 @@ def highlight_lobes_lines(ax, theta, data, label_prefix=''): #for a button to sh
     unique = dict(zip(labels, handles))
     ax.legend(unique.values(), unique.keys(), loc='lower right')
 
+def blend_with_white(color, blend_factor=0.5): #extra thing but better makes the color lighter (so it looks better fl cursseur)
+    rgba = np.array(mcolors.to_rgba(color))
+    white = np.array([1, 1, 1, 1])
+    blended = (1 - blend_factor) * rgba + blend_factor * white
+    return blended
 
-def add_cursor(ax_list):  #to have the curser
+def add_cursor(ax_list): #to have a cursseur with the color of the graphe
     cursor = mplcursors.cursor(ax_list, hover=True)
     
     def custom_annotate(sel):
         artist = sel.artist
-        label = artist.get_label()
-        if label == 'E-plane':
-            color = 'lightblue'
-        elif label == 'H-plane':
-            color = 'lightpink'
-        else:
-            color = 'gray'
-        sel.annotation.set_text(f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB")
-        sel.annotation.get_bbox_patch().set(fc=color, alpha=0.7)
+        color = artist.get_color()
+        light_color = blend_with_white(color, blend_factor=0.5)  # try 0.3–0.7
+        
+        sel.annotation.set_text(
+            f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB"
+        )
+        sel.annotation.get_bbox_patch().set(fc=light_color, alpha=0.7)
     
     cursor.connect("add", custom_annotate)
-
 
 def add_max_min_box(fig, ax, value_array, label, x_pos, y_pos, color): #for the max and min button 
     maxv = np.max(value_array)
