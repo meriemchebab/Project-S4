@@ -34,27 +34,24 @@ def Fix_Max(data): #get the max value and fix the values
     plan_h_2d = plan_h_db - np.max(plan_h_db)
     plan_e_2d = plan_e_db - np.max(plan_e_db)
 
-    return plan_e_2d, plan_h_2d #returns 2lists of the values 
+    return plan_e_2d, plan_h_2d #returns 2lists of the values
 
 
-def plot_2d(values, max=True, same=True):  # to draw the graph
+def plot_2d(values, max=True, same=True, highlight=True, max_min_box=True):
     half_length = len(values) // 2
     theta_deg = np.linspace(0, 360, half_length)
     theta_rad = np.radians(theta_deg)
 
-    if max:  # switch the value max 
+    if max:  # switch the value max
         plan_e_2d, plan_h_2d = Fix_Max(values)
-        np1 = Normal(plan_e_2d) #so swasp the index
+        np1 = Normal(plan_e_2d)
         np2 = Normal(plan_h_2d)
-        
+
         # filter the values
         np1_filtered = savgol_filter(np1, window_length=11, polyorder=2)
         np2_filtered = savgol_filter(np2, window_length=11, polyorder=2)
-        
-        if same:
-            Afficher_2d(np1_filtered, np2_filtered, theta_rad, same=True)
-        else:
-            Afficher_2d(np1_filtered, np2_filtered, theta_rad, same=False)
+
+        Afficher_2d(np1_filtered, np2_filtered, theta_rad,same=same, highlight=highlight, max_min_box=max_min_box)
 
     else:  # no max change
         plan_e = np.array(values[:half_length])
@@ -63,13 +60,11 @@ def plot_2d(values, max=True, same=True):  # to draw the graph
         plan_e_filtered = savgol_filter(plan_e, window_length=11, polyorder=2)
         plan_h_filtered = savgol_filter(plan_h, window_length=11, polyorder=2)
 
-        if same:
-            Afficher_2d(plan_e_filtered, plan_h_filtered, theta_rad, same=True)
-        else:
-            Afficher_2d(plan_e_filtered, plan_h_filtered, theta_rad, same=False)
+        Afficher_2d(plan_e_filtered, plan_h_filtered, theta_rad,same=same, highlight=highlight, max_min_box = max_min_box)
+
 
 #function lobe here
-def highlight_lobes_lines(ax, theta, data, label_prefix=''): #to have the lobes colored
+def highlight_lobes_lines(ax, theta, data, label_prefix=''): #for a button to show the lobes
 
     peaks, _ = find_peaks(data)
     peak_values = data[peaks]
@@ -125,117 +120,119 @@ def highlight_lobes_lines(ax, theta, data, label_prefix=''): #to have the lobes 
     unique = dict(zip(labels, handles))
     ax.legend(unique.values(), unique.keys(), loc='lower right')
 
-#to here the fucton 
+
+def add_cursor(ax_list):  #to have the curser
+    cursor = mplcursors.cursor(ax_list, hover=True)
+    
+    def custom_annotate(sel):
+        artist = sel.artist
+        label = artist.get_label()
+        if label == 'E-plane':
+            color = 'lightblue'
+        elif label == 'H-plane':
+            color = 'lightpink'
+        else:
+            color = 'gray'
+        sel.annotation.set_text(f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB")
+        sel.annotation.get_bbox_patch().set(fc=color, alpha=0.7)
+    
+    cursor.connect("add", custom_annotate)
 
 
-def Afficher_2d(plan_e_2d, plan_h_2d, theta, same=True): #affichage fonction
+def add_max_min_box(fig, ax, value_array, label, x_pos, y_pos, color): #for the max and min button 
+    maxv = np.max(value_array)
+    minv = np.min(value_array)
+    
+    # Show max/min in top-left info box
+    fig.text(x_pos, y_pos, f"Max ({label}): {maxv:.2f} dB\nMin ({label}): {minv:.2f} dB",
+             fontsize=12, va='center', ha='left',
+             bbox=dict(facecolor=color, alpha=0.5, edgecolor='black'))
+    
+    # Get angle positions
+    angles = np.linspace(0, 360, len(value_array))
+    max_idx = np.argmax(value_array)
+    min_idx = np.argmin(value_array)
+    max_angle = angles[max_idx]
+    min_angle = angles[min_idx]
+    
+    # Calculate coordinates for arrow annotations
+    max_r = value_array[max_idx]
+    min_r = value_array[min_idx]
+    
+    # Add arrow annotation for max
+    ax.annotate(f'{maxv:.2f} dB',
+                xy=(np.radians(max_angle), max_r),  # arrow tip
+                xytext=(np.radians(max_angle), max_r + 5),  # text position
+                textcoords='data',
+                arrowprops=dict(arrowstyle="->", color='black', lw=1.5),
+                ha='center', va='bottom', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='black', alpha=0.7))
+    
+    # Add arrow annotation for min
+    ax.annotate(f'{minv:.2f} dB',
+                xy=(np.radians(min_angle), min_r),  # arrow tip
+                xytext=(np.radians(min_angle), min_r + 5),  # text position
+                textcoords='data',
+                arrowprops=dict(arrowstyle="->", color='black', lw=1.5),
+                ha='center', va='bottom', fontsize=10,
+                bbox=dict(facecolor='white', edgecolor='black', alpha=0.7))
+
+
+
+def Afficher_2d(plan_e_2d, plan_h_2d, theta, same=True, highlight=True, max_min_box=True):
     fig, ax = None, None
 
-    if same: #si les deux graphe in the same plot
-        # Create the same plot
+    if same:
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
 
         ax.plot(theta, plan_e_2d, label='E-plane', color='blue')
         ax.plot(theta, plan_h_2d, label='H-plane', color='red')
 
-        highlight_lobes_lines(ax, theta, plan_e_2d, label_prefix='E-plane')#u do the call for e 
-        highlight_lobes_lines(ax, theta, plan_h_2d, label_prefix='H-plane')#the call of h
+        if highlight:
+            highlight_lobes_lines(ax, theta, plan_e_2d, label_prefix='E-plane') #to hightligh the lobe (the call)
+            highlight_lobes_lines(ax, theta, plan_h_2d, label_prefix='H-plane')
+
         ax.set_theta_direction(-1)
         ax.set_theta_offset(np.pi / 2)
-        ax.set_title('Polar Plot - Combined',x=0.2, y=1.05)
-        ax.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
+        ax.set_title('Polar Plot - Combined', x=0.2, y=1.05)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.2))
         fig.set_size_inches(6, 6)
 
-        #~~~~form here (to have the curceur thing)
-        cursor = mplcursors.cursor([ax], hover=True) #to get the values like plotly bl curser (can make it custom)
-        
-        def custom_annotate(sel):
-            artist = sel.artist
-            label = artist.get_label()
-            if label == 'E-plane':
-                color = 'lightblue'  # or any color you prefer
-            elif label == 'H-plane':
-                color = 'lightpink'  # or any color you prefer
-            else:
-                color = 'gray'
-            sel.annotation.set_text(f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB")
-            sel.annotation.get_bbox_patch().set(fc=color, alpha=0.7)
+        add_cursor([ax])
 
-        cursor.connect("add", custom_annotate)
-        # ~~~~to here
+        if max_min_box:
+            add_max_min_box(fig, ax, plan_e_2d, 'E-plane', 0.05, 0.9, 'lightblue')  #to have the max and min (call)
+            add_max_min_box(fig, ax, plan_h_2d, 'H-plane', 0.05, 0.75, 'lightpink')
 
-        #~~~~from here (to have the box with the max and min)
-        maxv = np.max(plan_e_2d)
-        minv = np.min(plan_e_2d)
-        fig.text(0.05, 0.9, f"Max (E-plane): {maxv:.1f} dB\nMin (E-plane): {minv:.2f} dB",
-                 fontsize=12, va='center', ha='left',
-                 bbox=dict(facecolor='lightblue', alpha=0.5, edgecolor='black'))
-        
-
-        maxv = np.max(plan_h_2d)
-        minv = np.min(plan_h_2d)
-        fig.text(0.05, 0.75, f"Max (H-plane): {maxv:.1f} dB\nMin (H-plane): {minv:.2f} dB",
-                 fontsize=12, va='center', ha='left',
-                 bbox=dict(facecolor='lightpink', alpha=0.5, edgecolor='black'))
-        #~~~~~~to here
-        
-    else: #if les deux graphe they on seperat plot (the same plote 
-        # Create separate plots
+    else:
         fig, (ax1, ax2) = plt.subplots(1, 2, subplot_kw={'projection': 'polar'}, figsize=(12, 6))
 
         ax1.plot(theta, plan_e_2d, label='E-plane', color='blue')
-
-        highlight_lobes_lines(ax1, theta, plan_e_2d, label_prefix='E-plane')#call for e 
-
-        ax1.set_title("E-plane Pattern",x=0.2, y=1.05)
+        if highlight:
+            highlight_lobes_lines(ax1, theta, plan_e_2d, label_prefix='E-plane')
+        ax1.set_title("E-plane Pattern", x=0.2, y=1.05)
         ax1.set_theta_direction(-1)
         ax1.set_theta_offset(np.pi / 2)
-        ax1.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
+        ax1.legend(loc='upper right', bbox_to_anchor=(1.3, 1.2))
 
         ax2.plot(theta, plan_h_2d, label='H-plane', color='red')
-
-        highlight_lobes_lines(ax2, theta, plan_h_2d, label_prefix='H-plane')# call do h
-
-        ax2.set_title("H-plane Pattern",x=0.2, y=1.05)
+        if highlight:
+            highlight_lobes_lines(ax2, theta, plan_h_2d, label_prefix='H-plane')
+        ax2.set_title("H-plane Pattern", x=0.2, y=1.05)
         ax2.set_theta_direction(-1)
         ax2.set_theta_offset(np.pi / 2)
-        ax2.legend(loc='upper right',bbox_to_anchor=(1.3, 1.2))
+        ax2.legend(loc='upper right', bbox_to_anchor=(1.3, 1.2))
 
         fig.suptitle("2D Radiation Patterns - Separate", fontsize=16)
 
-        #to get the values like plotly bl curser (can make it custom)
-        cursor = mplcursors.cursor([ax1, ax2], hover=True)
+        add_cursor([ax1, ax2])
 
-        def custom_annotate(sel):
-            artist = sel.artist
-            label = artist.get_label()
-            if label == 'E-plane':
-                color = 'lightblue'  # or any color you prefer
-            elif label == 'H-plane':
-                color = 'lightpink'  # or any color you prefer
-            else:
-                color = 'gray'
-            sel.annotation.set_text(f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB")
-            sel.annotation.get_bbox_patch().set(fc=color, alpha=0.7)
-
-        cursor.connect("add", custom_annotate)
-
-        maxv = np.max(plan_e_2d)
-        minv = np.min(plan_e_2d)
-        fig.text(0.025, 0.9, f"Max (E-plane): {maxv:.1f} dB\nMin (E-plane): {minv:.2f} dB",
-                 fontsize=12, va='center', ha='left',
-                 bbox=dict(facecolor='lightblue', alpha=0.5, edgecolor='black'))
-        
-
-        maxv = np.max(plan_h_2d)
-        minv = np.min(plan_h_2d)
-        fig.text(0.5, 0.9, f"Max (H-plane): {maxv:.1f} dB\nMin (H-plane): {minv:.2f} dB",
-                 fontsize=12, va='center', ha='left',
-                 bbox=dict(facecolor='lightpink', alpha=0.5, edgecolor='black'))
+        if max_min_box:
+            add_max_min_box(fig, ax1, plan_e_2d, 'E-plane', 0.025, 0.9, 'lightblue')
+            add_max_min_box(fig, ax2, plan_h_2d, 'H-plane', 0.5, 0.9, 'lightpink')
 
     plt.tight_layout()
     plt.show()
-
 
 def plot_3d(data, max=True): #3d code
     half_length = len(data) // 2
@@ -264,12 +261,16 @@ def plot_3d(data, max=True): #3d code
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
 
-    surf = ax.plot_surface(X, Y, Z, cmap='plasma', linewidth=0.5)
+    surf = ax.plot_surface(X, Y, Z, cmap='jet', linewidth=0)
 
+    ax.set_xlabel('X axis')
+    ax.set_ylabel('Y axis')
+    ax.set_zlabel('Z axis (dB)')
     ax.set_title('3D Radiation Pattern (E + H averaged)', fontsize=14)
 
-    #form here to get the values with click
-    fig.colorbar(surf, shrink=0.6, aspect=10)
+    cbar = fig.colorbar(surf, shrink=0.6, aspect=10)
+    cbar.set_label('La puissance en db', fontsize=12)
+
     #the box that show the value 
     annotation_box = ax.text2D(0.05, 0.9, '', transform=ax.transAxes, fontsize=12, va='center', ha='left',
                                 bbox=dict(facecolor='lightblue', alpha=0.5, edgecolor='black'))
@@ -288,11 +289,10 @@ def plot_3d(data, max=True): #3d code
             plt.draw()  #to redraw the plot with the box 
 
     fig.canvas.mpl_connect('button_press_event', on_click) # to work (conest the bo=utton click the the event click)(kayen click the fuc is called)
-    #~~~~to here
-
+    
     plt.show()
 
 # Example of a main 
 data = file_reader("3Dcourbe1.txt")
-plot_2d(data, max=True , same=True)
-#plot_3d(data, False)
+#plot_2d(data, max=True , same=True)
+plot_3d(data, False)
