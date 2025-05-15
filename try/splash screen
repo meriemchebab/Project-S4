@@ -2,7 +2,7 @@
 # - Ce code n'est **pas un programme complet à lui seul**.
 # - Il doit être **ajouté à la fin du fichier principal**, juste avant `app.exec()`.
 # - Il faut aussi avoir une image nommée `splash.png` dans le même dossier que le fichier .py.
-# - Je suis en train de préparer cette image (vous pouvez utiliser n'importe quelle image temporaire pour tester).
+# - Je suis en train de préparer cette image 
 from PySide6.QtWidgets import QSplashScreen
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt, QTimer
