@@ -1,35 +1,75 @@
-// Fonction "Save As" pour les plots 3D et 2D//
-from PySide6.QtWidgets import QFileDialog
+//intégrer QThread dans l' application 
+//Modifications avec QThread :
+//Créer un thread séparé pour charger les données et tracer les graphiques.
+//DataLoaderThread :  nouvelle classe qui utilise QThread pour charger les données depuis le fichier dans un thread séparé
+//Signal data_loaded : Le signal est émis une fois que les données sont chargées et prêtes à être utilisées
+//on_data_loaded : Cette méthode est appelée dès que le signal est émis, et elle met à jour les données avant de procéder au tracé
+//Lors du clic sur le bouton "open", les données sont chargées dans un fil séparé, permettant à l'interface utilisateur de rester fluide et réactive
+//Utiliser des signaux ( pour notifier le GUI une fois que l'opération est terminée
 
-class Window(QMainWindow):
-    def __init__(self):
+
+from matplotlib.figure import Figure 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+import sys
+from PySide6.QtWidgets import (QPushButton, QApplication, QMainWindow, 
+                              QWidget, QVBoxLayout, QFileDialog, 
+                              QRadioButton, QHBoxLayout)
+import numpy as np
+from PySide6.QtCore import QThread, Signal
+
+class Myfig(FigureCanvas):
+    def __init__(self, parent=None):
+        self.fig = Figure(figsize=[12, 7])
+        super().__init__(self.fig)
+        if parent:
+            self.setParent(parent)
+        self.ax1 = None
+        self.ax2 = None
+
+class button(QPushButton):
+    def __init__(self, txt, parent=None):
+        super().__init__(txt, parent)  
+        self.txt = txt
+
+# Classe pour le thread de chargement des données
+class DataLoaderThread(QThread):
+    data_loaded = Signal()  # Signal pour notifier quand les données sont chargées
+
+    def __init__(self, file_name):
         super().__init__()
-        main = QWidget()
+        self.file_name = file_name
+        self.h_plane = []
+        self.e_plane = []
 
-        self.plot_widget = Myfig(self)  # create an instance of Myfig
-        Button = file_Button("open", self)
-        save_button = QPushButton("Save As", self)  # save button
+    def run(self):
+        # Charger les données dans un thread séparé
+        self.load_data()
+        self.data_loaded.emit()  # Émettre le signal lorsque les données sont chargées
 
-        layout = QHBoxLayout()
-        layout.addWidget(Button)
-        layout.addWidget(save_button)  # ajouter  save button to layout
-        layout.addWidget(self.plot_widget)
-        main.setLayout(layout)
-        self.setCentralWidget(main)
+    def load_data(self):
+        reading_started = False
+        reading_h_plane = True
 
-        Button.clicked.connect(lambda: self.plot_widget.Polar_2d(Button.file.read_file()))
-        save_button.clicked.connect(self.save_as)  # Connect Save button to save function
+        with open(self.file_name, 'r') as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
 
-    def save_as(self):
-        options = QFileDialog.Options()
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Plot", "", "PNG Files (*.png);;JPEG Files (*.jpg);;PDF Files (*.pdf)", options=options)
-        if file_path:
-            self.plot_widget.fig.savefig(file_path)  # Save the figure to the selected path
+                try:
+                    value = float(line)
+                    reading_started = True
 
+                    if reading_h_plane:
+                        self.h_plane.append(value)
+                    else:
+                        self.e_plane.append(value)
 
-
-//Changement de la couleur des plots//
-from PySide6.QtWidgets import QColorDialog
+                except ValueError:
+                    if reading_started:
+                        reading_h_plane = False
+                    continue
 
 class Window(QMainWindow):
     def __init__(self):
@@ -37,125 +77,98 @@ class Window(QMainWindow):
         main = QWidget()
 
         self.plot_widget = Myfig(self)
-        Button = file_Button("open", self)
-        color_button = QPushButton("Change Color", self)  # Button to change color
+        self.readButton = button("open", self)
+        self.plot2D = button("plot", self)
+        self.normal = QRadioButton("normalize", self)
+        
+        self.toolbar = NavigationToolbar(self.plot_widget, self)
+        
+        button_row = QHBoxLayout()
+        button_row.addWidget(self.readButton)
+        button_row.addWidget(self.plot2D)
+        button_row.addWidget(self.normal)
 
-        layout = QHBoxLayout()
-        layout.addWidget(Button)
-        layout.addWidget(color_button)  # Add color button
-        layout.addWidget(self.plot_widget)
+        layout = QVBoxLayout()
+        layout.addLayout(button_row)
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.plot_widget, stretch=1)
         main.setLayout(layout)
         self.setCentralWidget(main)
 
-        Button.clicked.connect(lambda: self.plot_widget.Polar_2d(Button.file.read_file()))
-        color_button.clicked.connect(self.change_color)  # connnect to change color
+        self.readButton.clicked.connect(self.read_file)
+        self.plot2D.clicked.connect(self.plot_2D)
+        self.normal.toggled.connect(self.plot_2D)
 
-    def change_color(self):
-        color = QColorDialog.getColor()  # get  selected color
-        if color.isValid():
-            self.plot_widget.update_plot_color(color.name())  # Update plot color
+        self.data = []
+        self.h_plane = []
+        self.e_plane = []
 
+    def read_file(self):
+        dialog = QFileDialog()
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setNameFilter("Text Files (*.txt);;atn files (*.atn);; csv (*.csv)")
+        if dialog.exec():
+            file_name = dialog.selectedFiles()[0]
 
-fe la classe Myfig, pn peut  ajouter une méthode pour mettre à jour la couleur du plot : 
-class Myfig(FigureCanvas):
-    def __init__(self, parent=None):
-        self.fig = Figure(figsize=[4, 4])
-        super().__init__(self.fig)
-        if parent:
-            self.setParent(parent)
+            # Créer et démarrer un nouveau thread pour charger les données
+            self.data_loader_thread = DataLoaderThread(file_name)
+            self.data_loader_thread.data_loaded.connect(self.on_data_loaded)
+            self.data_loader_thread.start()
 
-    def Polar_2d(self, data):
-        self.fig.clear()
-        half_length = len(data) // 2
-        curve1 = np.array(data[:half_length])
-        curve2 = np.array(data[half_length:])
-        theta = np.linspace(0, 2 * np.pi, half_length)
+    def on_data_loaded(self):
+        # Cette méthode est appelée lorsque les données sont chargées
+        self.h_plane = self.data_loader_thread.h_plane
+        self.e_plane = self.data_loader_thread.e_plane
+        self.plot_2D()  # Afficher les graphiques une fois les données chargées
 
-        axes = self.fig.subplots(1, 2, subplot_kw={'projection': 'polar'})
-        axes[0].plot(theta, curve1, label="Plan H", color='b')
-        axes[0].set_title("Plan H")
-        axes[0].legend()
+    def plot_2D(self):
+        if not (self.h_plane or self.e_plane):
+            print("Insufficient data to plot.")
+            return
+        
+        h_plane_db = np.array(self.h_plane)
+        e_plane_db = np.array(self.e_plane)
+        
+        if self.normal.isChecked():
+            if self.h_plane:
+                h_plane_db = self.normalize(h_plane_db)
+            if self.e_plane:
+                e_plane_db = self.normalize(e_plane_db)
 
-        axes[1].plot(theta, curve2, label="Plan E", color='r')
-        axes[1].set_title("Plan E")
-        axes[1].legend()
+        phi_h = np.radians(np.arange(len(h_plane_db)))  
+        phi_e = np.radians(np.arange(len(e_plane_db)))
+        
+        if self.plot_widget.ax1 is not None:
+            self.plot_widget.ax1.clear()
+        else:
+            self.plot_widget.ax1 = self.plot_widget.fig.add_subplot(1, 2, 1, projection='polar')
+        
+        if self.plot_widget.ax2 is not None:
+            self.plot_widget.ax2.clear()
+        else:
+            self.plot_widget.ax2 = self.plot_widget.fig.add_subplot(1, 2, 2, projection='polar')
 
-        self.draw()
+        # Tracer le H-plane
+        self.plot_widget.ax1.plot(phi_h, h_plane_db, label='H-plane', color='blue')
+        self.plot_widget.ax1.set_title('H-plane Pattern (dB)')
+        self.plot_widget.ax1.set_theta_zero_location('N')
+        self.plot_widget.ax1.set_theta_direction(-1)
+        self.plot_widget.ax1.legend()
 
-    def update_plot_color(self, color):
-        # Change the color dynamically based on user input
-        self.fig.clear()  # Clear the current plot
-        # redraw with the new color
-        self.Polar_2d(self.file.read_file())
+        # Tracer le E-plane
+        self.plot_widget.ax2.plot(phi_e, e_plane_db, label='E-plane', color='red')
+        self.plot_widget.ax2.set_title('E-plane Pattern (dB)')
+        self.plot_widget.ax2.legend()
 
+        # Redessiner le canvas
+        self.plot_widget.draw()
+        self.toolbar.push_current()
 
-
-//Lecture Multiformat de Fichiers Numériques avec Threading en Python
-import csv
-import pandas as pd
-import threading
-
-def read_file(file_name):
-    """
-    Lit un fichier (.txt, .atn, .csv, .xlsx) et retourne une liste de float.
-    """
-    extension = file_name.split('.')[-1].lower()
-
-    if extension in ['txt', 'atn']:
-        return read_text_file(file_name)
-    elif extension == 'csv':
-        return read_csv_file(file_name)
-    elif extension == 'xlsx':
-        return read_excel_file(file_name)
-    else:
-        raise ValueError(" Format de fichier non supporté.")
-
-def read_text_file(file_name):
-    data = []
-    with open(file_name, 'r') as file:
-        for line in file:
-            try:
-                value = float(line.strip())
-                data.append(value)
-            except ValueError:
-                continue
-    return data
-
-def read_csv_file(file_name):
-    data = []
-    with open(file_name, 'r') as file:
-        reader = csv.reader(file)
-        for row in reader:
-            try:
-                value = float(row[0])
-                data.append(value)
-            except (ValueError, IndexError):
-                continue
-    return data
-
-def read_excel_file(file_name):
-    data = []
-    df = pd.read_excel(file_name)
-    for value in df.iloc[:, 0]:  # première colonne
-        try:
-            data.append(float(value))
-        except ValueError:
-            continue
-    return data
-
-def threaded_read(file_name):
-    try:
-        data = read_file(file_name)
-        print(f"{file_name} lu avec succès . Nombre de valeurs : {len(data)}")
-    except Exception as e:
-        print(f"Erreur dans {file_name}  : {e}")
-
-def read_multiple_files(file_list):
-    threads = []
-    for file_name in file_list:
-        thread = threading.Thread(target=threaded_read, args=(file_name,))
-        thread.start()
-        threads.append(thread)
-
-    for thread in threads:
-        thread.join()
+    def normalize(self, dataN):
+        data = dataN - np.max(dataN)
+        return data
+        
+app = QApplication(sys.argv)
+window = Window()
+window.show()
+app.exec()

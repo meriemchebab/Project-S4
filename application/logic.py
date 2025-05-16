@@ -1,18 +1,18 @@
-
-import sys
+from PySide6.QtCore import QObject
 import numpy as np 
 from scipy.signal import savgol_filter
 
-class Model():
-    def __init__(self):
+class Model(QObject):
+    def __init__(self, parent =None):
+        super().__init__(parent)
         self.h_plane = None
         self.e_plane = None
         self.N_hplane = None
         self.N_eplane = None
         self.smooth_h = None
         self.smooth_e = None
-        self.phi_h = None
-        self.phi_e = None
+        
+
         self.X = None
         self.Y = None
         self.Z = None
@@ -68,9 +68,9 @@ class Model():
                 number += 1
             self.smooth_h = savgol_filter(self.h_plane, window_length= number, polyorder=2)
             self.smooth_e= savgol_filter(self.e_plane, window_length= number, polyorder=2)
-    def data_2D(self):
-        self.phi_h = np.radians(np.arange(len(self.h_plane)))  
-        self.phi_e = np.radians(np.arange(len(self.e_plane)))
+    #def data_2D(self):
+        #self.theta_h = np.radians(np.arange(len(self.h_plane)))  
+        #self.theta_e = np.radians(np.arange(len(self.e_plane)))
     def data_3D(self):
         size = len(self.h_plane)//2
         theta = np.linspace(0, 2 * np.pi,size)
@@ -84,3 +84,12 @@ class Model():
         self.X = r * np.sin(phi) * np.cos(theta)
         self.Y = r * np.sin(phi) * np.sin(theta)
         self.Z = r * np.cos(phi)
+    def clear_data(self):
+        self.N_hplane = None
+        self.N_eplane = None
+        self.smooth_h = None
+        self.smooth_e = None
+    
+        self.X = None
+        self.Y = None
+        self.Z = None
