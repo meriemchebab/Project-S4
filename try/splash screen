@@ -1,0 +1,30 @@
+//
+# - Ce code n'est **pas un programme complet à lui seul**.
+# - Il doit être **ajouté à la fin du fichier principal**, juste avant `app.exec()`.
+# - Il faut aussi avoir une image nommée `splash.png` dans le même dossier que le fichier .py.
+# - Je suis en train de préparer cette image 
+from PySide6.QtWidgets import QSplashScreen
+from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QTimer
+ app = QApplication(sys.argv)
+window = Window()
+window.show()
+app.exec()
+  app = QApplication(sys.argv)
+
+# l' image 
+pixmap = QPixmap("splash.png")
+splash = QSplashScreen(pixmap)
+splash.showMessage("Chargement de l'application...", Qt.AlignBottom | Qt.AlignCenter, Qt.white)
+splash.show()
+
+# Fonction pour lancer la vraie fenêtre
+def start_app():
+    window = Window()
+    window.show()
+    splash.finish(window)
+
+# Lancer après 2 secondes
+QTimer.singleShot(2000, start_app)
+
+app.exec()

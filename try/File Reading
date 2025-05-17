@@ -1,0 +1,25 @@
+import os
+
+# ...
+
+file_ext = os.path.splitext(file_name)[1].lower()
+
+if file_ext in ['.txt', '.atn', '.csv']:
+    with open(file_name, 'r') as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                value = float(line)
+                reading_started = True
+                if reading_h_plane:
+                    self.h_plane.append(value)
+                else:
+                    self.e_plane.append(value)
+            except ValueError:
+                if reading_started:
+                    reading_h_plane = False
+                continue
+else:
+    print("Type de fichier non supporté :", file_ext)
