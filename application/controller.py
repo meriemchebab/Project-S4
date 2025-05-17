@@ -15,7 +15,7 @@ class Controler(QObject):
         self.index = -1
         # the signals and slots 
 
-        self.ui.readButton.clicked.connect(self.read)
+        self.ui.main.button.clicked.connect(self.read)
 
         
 #reading a file
@@ -63,12 +63,12 @@ class Controler(QObject):
          self.ui.fig2D.update_ax2(self.mode)
          self.ui.plot_2D(self.mode)
     def polar_2D_split(self):
-        self.ui.fig2D.clf()
+        self.ui.fig2D.figure.clf()
         self.mode = 2
         self.ui.fig2D.update_ax2(self.mode)
         self.ui.plot_2D(self.model.h_plane,self.model.e_plane ,self.mode) 
     def polar_3D(self):
-      self.ui.fig3D.clf()
+      self.ui.fig3D.figure.clf()
       self.ui.fig3D.setupAX3()
       self.ui.plot_3D()
     def normal(self):

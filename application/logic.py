@@ -5,14 +5,12 @@ from scipy.signal import savgol_filter
 class Model(QObject):
     def __init__(self, parent =None):
         super().__init__(parent)
+        self.h_plane2D = None
+        self.e_plane2D = None
+        self.h_plane3D = None
+        self.e_plane3D = None
         self.h_plane = None
         self.e_plane = None
-        self.N_hplane = None
-        self.N_eplane = None
-        self.smooth_h = None
-        self.smooth_e = None
-        
-
         self.X = None
         self.Y = None
         self.Z = None
@@ -50,46 +48,64 @@ class Model(QObject):
                     # Else: still skipping initial metadata
                     continue
         # give me the data clean in an array for the use in plot        
-        self.e_plane=np.array(self.e_plane)
-        self.h_plane= np.array(self.h_plane)
-    def normelize(self):
+        self.e_plane2D= np.array(self.e_plane)
+        self.h_plane2D= np.array(self.h_plane)
+        self.h_plane3D= np.array(self.h_plane)
+        self.e_plane3D= np.array(self.e_plane)
+        # this 2 will be used in the smooth and will not change at all
+        self.e_plane = np.array(self.e_plane)
+        self.h_plane = np.array(self.h_plane)
+        # set each data to the figure type 
+    def normalize(self, mode):
+        if mode == "2D" and self.h_plane2D is not None and self.e_plane2D is not None:
+            self.h_plane2D = self.h_plane2D - np.max(self.h_plane2D)
+            self.e_plane2D = self.e_plane2D - np.max(self.e_plane2D)
+
+        elif mode == "3D" and self.h_plane3D is not None and self.e_plane3D is not None:
+            self.h_plane3D = self.h_plane3D - np.max(self.h_plane3D)
+            self.e_plane3D = self.e_plane3D - np.max(self.e_plane3D)
+
+
+    def smooth(self, number, mode):
         if self.e_plane is not None and self.h_plane is not None:
-
-            
-            self.N_eplane = self.e_plane - np.max(self.e_plane)
-            self.N_hplane = self.h_plane - np.max(self.h_plane)
-
-
-    def smooth(self,number):
-
-        if self.e_plane is not None and self.h_plane is not None:
-
             if number % 2 == 0:
                 number += 1
-            self.smooth_h = savgol_filter(self.h_plane, window_length= number, polyorder=2)
-            self.smooth_e= savgol_filter(self.e_plane, window_length= number, polyorder=2)
-    #def data_2D(self):
-        #self.theta_h = np.radians(np.arange(len(self.h_plane)))  
-        #self.theta_e = np.radians(np.arange(len(self.e_plane)))
+
+            # Always smooth from original clean data
+            smoothed_h = savgol_filter(self.h_plane, window_length=number, polyorder=2)
+            smoothed_e = savgol_filter(self.e_plane, window_length=number, polyorder=2)
+
+            if mode == '2D':
+                self.h_plane2D = smoothed_h
+                self.e_plane2D = smoothed_e
+            elif mode == '3D':
+                self.h_plane3D = smoothed_h
+                self.e_plane3D = smoothed_e
+
     def data_3D(self):
-        size = len(self.h_plane)//2
+        size = len(self.h_plane)
         theta = np.linspace(0, 2 * np.pi,size)
         phi = np.linspace(0, np.pi,size )
         theta, phi = np.meshgrid(theta, phi)
 
+        
         # Fake 3D radial values by averaging E & H
-        r = (np.outer(self.h_plane, np.ones_like(self.e_plane)) + np.outer(np.ones_like(self.h_plane),self.e_plane )) / 2
+        r = (np.outer(self.h_plane3D, np.ones_like(self.e_plane3D)) + np.outer(np.ones_like(self.h_plane3D),self.e_plane3D )) / 2
 
         # Convert spherical to cartesian
         self.X = r * np.sin(phi) * np.cos(theta)
         self.Y = r * np.sin(phi) * np.sin(theta)
         self.Z = r * np.cos(phi)
-    def clear_data(self):
-        self.N_hplane = None
-        self.N_eplane = None
-        self.smooth_h = None
-        self.smooth_e = None
+    def reset_processed_data(self, mode='all'):
     
-        self.X = None
-        self.Y = None
-        self.Z = None
+    #Reset smoothed and normalized data for 2D, 3D, or both.
+    
+    #mode: '2D', '3D', or 'all'
+    
+        if mode == '2D' or mode == 'all':
+            self.h_plane2D = None
+            self.e_plane2D = None
+
+        if mode == '3D' or mode == 'all':
+            self.h_plane3D = None
+            self.e_plane3D = None

@@ -7,8 +7,9 @@ from PySide6.QtWidgets import (QPushButton, QMainWindow,
                               QRadioButton, QHBoxLayout,QSlider,QColorDialog)
 
 from PySide6.QtCore import Qt
-import numpy as np
 
+import numpy as np
+from interface import Ui_MainWindow
 # this is the figure we will draw on there is tow kinds 2D and 3D so i subclassed it  
 class Myfig(FigureCanvas):
     def __init__(self, parent=None):
@@ -39,35 +40,20 @@ class Fig3D(Myfig):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        main = QWidget()
+        self.main = Ui_MainWindow(self) 
+        # custom toolbar
         
         self.fig2D = Fig2D(self)
         self.fig3D = Fig3D(self)
+        self.main.frame.layout().addWidget(self.fig2D)
+        self.main.frame_2.layout().addWidget(self.fig3D)
+        self.toolbar1 = NavigationToolbar(self.fig2D,self)
+        self.toolbar2 = NavigationToolbar(self.fig3D,self)
+        self.main.frame.layout().addWidget(self.toolbar1)
+        self.main.frame_2.layout().addWidget(self.toolbar2)
         self.h_color = 'b'
         self.e_color = 'red'
-        self.readButton = QPushButton("open", self)
         
-        self.normal = QRadioButton("normelize", self)
-        
-        self.toolbar = NavigationToolbar(self.fig2D, self)
-        self.slider = QSlider()
-        self.slider.setMaximum(6)
-        self.slider.setMinimum(1)
-        self.slider.setOrientation(Qt.Horizontal) 
-
-        Button_row = QHBoxLayout()
-        Button_row.addWidget(self.readButton)
-        Button_row.addWidget(self.plot2D_same)
-        Button_row.addWidget(self.plot2D_split)
-        Button_row.addWidget(self.normal)
-
-        layout = QVBoxLayout()
-        layout.addLayout(Button_row)
-        layout.addWidget(self.slider)
-        layout.addWidget(self.toolbar)
-        layout.addWidget(self.fig2D, stretch=1)
-        main.setLayout(layout)
-        self.setCentralWidget(main)
 
 
     
@@ -103,7 +89,7 @@ class Window(QMainWindow):
                 self.fig2D.ax1.set_title("H_palne and E_plane ")
                 self.fig2D.ax1.legend()
                 self.fig2D.ax1.draw()
-                self.toolbar.push_current()   
+                self.toolbar1.push_current()   
             #maybe color change here
             else :
                 self.fig2D.ax1.clear()
@@ -123,8 +109,8 @@ class Window(QMainWindow):
                 self.fig2D.draw()
                 
                 # Push the current view to the navigation stack
-                self.toolbar.push_current()    
-        return
+                self.toolbar2.push_current()    
+        
     def plot_3D(self, x,y ,z):
         surf = self.fig3D.ax3.plot_surface(x, y, z, cmap='viridis', edgecolor='none', alpha=0.8)
         self.fig3D.colorbar(surf, ax=self.fig3D.ax3, shrink=0.5, label='Radiation Intensity (linear)')
@@ -133,8 +119,8 @@ class Window(QMainWindow):
         self.fig3D.ax3.set_xlabel('X')
         self.fig3D.ax3.set_ylabel('Y')
         self.fig3D.ax3.set_zlabel('Z')
-        self.fig3D.ax3.view_init(elev=30, azim=45)   
-                    
+        self.fig3D.ax3.view_init(elev=30, azim=45)           
+        self.fig3D.draw()         
 
 
 
