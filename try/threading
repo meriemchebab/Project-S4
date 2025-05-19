@@ -1,0 +1,126 @@
+import threading
+from PySide6.QtCore import QObject, Signal, Qt
+from logic import Model
+from UI_file import Window
+
+class Controler(QObject):
+    # Signal émis quand la lecture est terminée, pour déclencher le tracé dans le thread UI
+    dataReady = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.model = Model(self)
+        self.ui = Window(self)
+        self.mode = None
+        self.listHistory = {
+            "h_plane": [],
+            "e_plane": [],
+        }
+        self.index = -1
+
+      
+        self.ui.main.button.clicked.connect(self.read)
+
+        # Quand les données sont prêtes, appeler self._onDataReady dans le thread UI
+        self.dataReady.connect(self._onDataReady)
+
+    def read(self):
+        """Slot appelé au clic : lance la lecture en arrière-plan."""
+       
+        self.ui.main.button.setEnabled(False)
+
+        
+        worker = threading.Thread(target=self._read_in_thread, daemon=True)
+        worker.start()
+
+    def _read_in_thread(self):
+        """Lecture + parsing du fichier dans un thread séparé."""
+        # 1. Ouvrir le dialogue et récupérer le chemin
+        file_name = self.ui.open_file()
+        if not file_name:
+           
+            self._finish_read()
+            return
+
+        # 2. Lire le fichier et mettre à jour le modèle
+        self.model.read_file(file_name)
+
+        # 3. Mettre à jour l’historique
+        Hdata = self.model.h_plane
+        Edata = self.model.e_plane
+        self.listHistory["h_plane"].append(Hdata)
+        self.listHistory["e_plane"].append(Edata)
+        self.index += 1
+
+        # 4. Signaler que les données sont prêtes → emit dataReady()
+        self.dataReady.emit()
+
+        # 5. Fin de lecture (réactivation du bouton)
+        self._finish_read()
+
+    def _onDataReady(self):
+        """Slot UI : tracer les données depuis le thread principal."""
+        # Appeler le plot adapté en fonction du mode
+        if self.mode == 1:
+            self.ui.plot_2D(self.model.h_plane, self.model.e_plane, mode=1)
+        elif self.mode == 2:
+            self.ui.plot_2D(self.model.h_plane, self.model.e_plane, mode=2)
+        else:
+            # par défaut, on peut tracer en overlay
+            self.ui.plot_2D(self.model.h_plane, self.model.e_plane, mode=1)
+
+    def _finish_read(self):
+        """Réactive le bouton en thread UI."""
+        # Qt garantit que slots connectés à des signaux sont exécutés dans le thread UI
+        # ici on crée un signal ad hoc pour réactiver
+        self.ui.main.button.setEnabled(True)
+
+    # --- Fonctions de navigation dans l'historique ---
+    def can_goBack(self):
+        return self.index > 0
+
+    def can_goForth(self):
+        return self.index < len(self.listHistory["h_plane"]) - 1
+
+    def GoBack(self):
+        if self.can_goBack():
+            self.index -= 1
+            self.model.h_plane = self.listHistory["h_plane"][self.index]
+            self.model.e_plane = self.listHistory["e_plane"][self.index]
+            self.model.clear_data()
+
+    def GoForth(self):
+        if self.can_goForth():
+            self.index += 1
+            self.model.h_plane = self.listHistory["h_plane"][self.index]
+            self.model.e_plane = self.listHistory["e_plane"][self.index]
+            self.model.clear_data()
+
+    # --- Modes de tracé ---
+    def polar_2D_same(self):
+        self.mode = 1
+        self.ui.fig2D.clf()
+        self.ui.fig2D.update_ax2(self.mode)
+        # Si les données sont déjà chargées, on trace tout de suite
+        if self.index >= 0:
+            self.ui.plot_2D(self.model.h_plane, self.model.e_plane, mode=self.mode)
+
+    def polar_2D_split(self):
+        self.mode = 2
+        self.ui.fig2D.clf()
+        self.ui.fig2D.update_ax2(self.mode)
+        if self.index >= 0:
+            self.ui.plot_2D(self.model.h_plane, self.model.e_plane, mode=self.mode)
+
+    def polar_3D(self):
+        self.mode = 3
+        self.ui.fig3D.clf()
+        self.ui.fig3D.setupAX3()
+        if self.index >= 0:
+            # Assure-toi d'appeler compute_3D() avant plot_3D
+            self.model.data_3D()
+            self.ui.plot_3D(self.model.X, self.model.Y, self.model.Z)
+
+    def normal(self):
+        # à remplir selon ton usage
+        pass
