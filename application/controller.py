@@ -76,7 +76,7 @@ class Controler(QObject):
             Edata3 = self.model.e_plane3D.copy()
             color2e =self.ui.fig2D.color_e
             color2h =self.ui.fig2D.color_h
-            color3D = self.ui.fig3D.color
+            color3D = self.ui.fig3D.cmap
 
             self.listHistory["h_plane2D"].append(Hdata2)
             self.listHistory["e_plane2D"].append(Edata2)
@@ -111,7 +111,7 @@ class Controler(QObject):
             self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
             self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
             self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
-            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            self.ui.fig3D.cmap = self.listHistory["3d_color"][self.index]
             self.update_smooth_slider()
             
     def GoForth(self):
@@ -123,7 +123,7 @@ class Controler(QObject):
             self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
             self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
             self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
-            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            self.ui.fig3D.cmap = self.listHistory["3d_color"][self.index]
             self.update_smooth_slider()          
     def limitListSize(self):
          i = len(self.listHistory["h_plane2D"]) - 1
@@ -137,40 +137,43 @@ class Controler(QObject):
             self.listHistory["3d_color"].pop(0) 
                      
     def polar_2D_same(self):
-         self.ui.fig2D.fig.clf()
-         self.ui.fig2D.mode = 1
-         self.ui.fig2D.update_ax2()
-         self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+         self.ui.fig2D.toggle_mode(False)
+         self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+         self.ui.toolbar1.push_current()
     def polar_2D_split(self):
-        self.ui.fig2D.fig.clf()
-        self.ui.fig2D.mode = 2
-        self.ui.fig2D.update_ax2()
-        self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D ) 
+        self.ui.fig2D.toggle_mode(True)
+        self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+        self.ui.toolbar1.push_current()
+        
+    
+        
     def polar_3D(self):
       # make new figure
-      self.ui.fig3D.fig.clf()
-      self.ui.fig3D.setupAX3()
-      # calculate the 3D data 
-      X,Y,Z = self.model.data_3D()
-      self.ui.plot_3D(X,Y,Z)
+        
+        X, Y, Z = self.model.data_3D()
+        self.ui.fig3D.plot_surface(X, Y, Z)
+        self.ui.toolbar2.push_current()
     def normal(self):
         if self.ui.view.offset_button.isChecked():
 
             self.model.normalize('2D')
             self.model.normalize('3D')
-            self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+            self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+            self.ui.toolbar2.push_current()
         else :
             self.model.denormalize('2D')
             self.model.denormalize('3D')
-            self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+            self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+            self.ui.toolbar2.push_current()
     def smooth_3D(self ,number):
         self.model.smooth(number,"3D")
         X,Y,Z = self.model.data_3D()
-        
-        self.ui.plot_3D(X,Y,Z)
+        self.ui.fig3D.plot_surface(X, Y, Z)
+        self.ui.toolbar2.push_current()
     def smooth_2D(self ,number):
         self.model.smooth(number,"2D")
-        self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D) 
+        self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D) 
+        self.ui.toolbar2.push_current()
         # you have to set the max window for the slider
     def update_smooth_slider(self):
     # Assume self.model.h_plane is your current data array
@@ -179,9 +182,11 @@ class Controler(QObject):
         if max_window % 2 == 0:
             max_window -= 1
         self.ui.view.smoothness_slider1.setRange(5, max_window)
+        self.ui.view.smoothness_slider2.setRange(5, max_window)
     def color_2D(self):
          self.ui.pick_color_for()
-         self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D) 
+         self.ui.fig2D.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+         self.ui.toolbar1.push_current() 
     def color_3D(self):
         COLORMAPS_3D = (
             "viridis",
@@ -196,9 +201,11 @@ class Controler(QObject):
             "hsv"
         )
         self.i = (self.i + 1) % len(COLORMAPS_3D)
-        self.ui.fig3D.color = COLORMAPS_3D[self.i]
+        self.ui.fig3D.cmap = COLORMAPS_3D[self.i]
         X, Y, Z = self.model.data_3D()
-        self.ui.plot_3D(X, Y, Z)
+        self.ui.fig3D.plot_surface(X, Y, Z)
+        self.ui.toolbar2.push_current()
+        
      
 
     def load_project(self):
@@ -231,7 +238,7 @@ class Controler(QObject):
             self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
             self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
             self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
-            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            self.ui.fig3D.cmap = self.listHistory["3d_color"][self.index]
             # Redraw plots
         self.update_smooth_slider()       
             

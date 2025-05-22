@@ -244,42 +244,27 @@ class Ui_Window(object):
         navigation_layout1.addWidget(self.next_button1)
         tab1_layout.addLayout(navigation_layout1)
         # --- Tab 2: 3D Visualization ---
+        # --- Tab 2: 3D Visualization ---
         self.tab2 = QWidget()
         self.tab_widget.addTab(self.tab2, "3D Visualization")
         tab2_layout = QVBoxLayout(self.tab2)
+
         nav_bar_layout2 = QHBoxLayout()
         self.zoom_in_button2 = QPushButton()
         self.zoom_in_button2.setIcon(QIcon.fromTheme("zoom-in"))
         self.zoom_in_button2.setToolTip("Zoom In")
+
         self.zoom_out_button2 = QPushButton()
         self.zoom_out_button2.setIcon(QIcon.fromTheme("zoom-out"))
         self.zoom_out_button2.setToolTip("Zoom Out")
-        self.color_button2 = QPushButton("Change Plot Color")
+
         self.color_button3D = QPushButton("Change 3D Plot Color")
+
         nav_bar_layout2.addStretch(1)
         nav_bar_layout2.addWidget(self.zoom_in_button2)
         nav_bar_layout2.addWidget(self.zoom_out_button2)
-        nav_bar_layout2.addWidget(self.color_button2)
+        nav_bar_layout2.addWidget(self.color_button3D)  # ✅ Correct button!
         tab2_layout.addLayout(nav_bar_layout2)
-        # Placeholder for dynamic canvas and toolbar
-        self.tab2_canvas_layout = QVBoxLayout()
-        tab2_layout.addLayout(self.tab2_canvas_layout)
-        smoothing_controls_layout2 = QHBoxLayout()
-        self.smooth_label2 = QLabel("Smooth the plot")
-        self.smoothness_slider2 = QSlider(Qt.Horizontal)
-    
-        smoothing_controls_layout2.addStretch(1)
-        smoothing_controls_layout2.addWidget(self.smooth_label2)
-        smoothing_controls_layout2.addWidget(self.smoothness_slider2, 2)
-        smoothing_controls_layout2.addStretch(1)
-        tab2_layout.addLayout(smoothing_controls_layout2)
-        navigation_layout2 = QHBoxLayout()
-        self.back_button2 = QPushButton("Back")
-        self.next_button2 = QPushButton("Next")
-        navigation_layout2.addWidget(self.back_button2)
-        navigation_layout2.addStretch(1)
-        navigation_layout2.addWidget(self.next_button2)
-        tab2_layout.addLayout(navigation_layout2)
         # Add tab widget to grid
         self.grid_layout.addWidget(self.tab_widget, 0, 1)
         self.grid_layout.setColumnStretch(0, 0)
@@ -290,7 +275,7 @@ class Ui_Window(object):
         self.statusBar.showMessage("Ready")
 
         self.theme_toggle.stateChanged.connect(self.toggle_dark_mode)
-       
+    
         self.is_dark_mode = False
         self.apply_styles()
 
