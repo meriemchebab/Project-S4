@@ -2,71 +2,170 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
+
 from PySide6.QtWidgets import (QPushButton, QMainWindow, 
-                              QWidget, QVBoxLayout, QFileDialog, 
-                              QRadioButton, QHBoxLayout,QSlider,QColorDialog)
+                              QWidget, QVBoxLayout, QFileDialog,QMessageBox, 
+                              QRadioButton, QApplication,QHBoxLayout,QSlider,QColorDialog)
 
-from PySide6.QtCore import Qt
-
+from widgets import Ui_Window
 import numpy as np
-from interface import Ui_MainWindow
+
 # this is the figure we will draw on there is tow kinds 2D and 3D so i subclassed it  
-class Myfig(FigureCanvas):
+#class Myfig(FigureCanvas):
+    #def __init__(self, parent=None):
+        #self.fig = Figure(figsize=[12,8 ])
+        #super().__init__(self.fig)
+        #if parent:
+            #self.setParent(parent)
+        # Initialize axes as None (we'll create them when needed)
+class Fig2D(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=[12, 8])
+        self.fig = Figure(figsize=[12,8 ])
         super().__init__(self.fig)
         if parent:
             self.setParent(parent)
-        # Initialize axes as None (we'll create them when needed)
-class Fig2D(Myfig):
-    def __init__(self, parent=None):
-        super().__init__(parent)
         self.ax1 = None 
         self.ax2 = None 
-        
-    def update_ax2(self, mode):
-        if mode == 1:
+        self.color_h ='blue'
+        self.color_e ='red'
+        self.mode = None
+    def update_ax2(self):
+        if self.mode == 1:
             self.ax1 = self.fig.add_subplot(121, polar=True)
             self.ax2 = self.fig.add_subplot(122, polar=True)
         else :
             self.ax1 = self.fig.add_subplot(111, polar=True)
-class Fig3D(Myfig):
+    def zoom_in(self, factor=0.8):
+        min_ylim = 1e-3  # Lower bound for y-limits
+        max_ylim = 1e6   # Upper bound for y-limits
+        if self.mode == 1:
+            if self.ax1 is not None:
+                rmin, rmax = self.ax1.get_ylim()
+                new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
+                if new_rmax > min_ylim:
+                    self.ax1.set_ylim(rmin, new_rmax)
+        if self.mode == 2:
+            if self.ax1 is not None and self.ax2 is not None:
+                rmin1, rmax1 = self.ax1.get_ylim()
+                new_rmax1 = max(min(rmax1 * factor, max_ylim), min_ylim)
+                if new_rmax1 > min_ylim:
+                    self.ax1.set_ylim(rmin1, new_rmax1)
+                rmin2, rmax2 = self.ax2.get_ylim()
+                new_rmax2 = max(min(rmax2 * factor, max_ylim), min_ylim)
+                if new_rmax2 > min_ylim:
+                    self.ax2.set_ylim(rmin2, new_rmax2)
+        self.draw()
+
+    def zoom_out(self, factor=1.25):
+        min_ylim = 1e-3  # Lower bound for y-limits
+        max_ylim = 1e6   # Upper bound for y-limits
+        if self.mode == 1:
+            if self.ax1 is not None:
+                rmin, rmax = self.ax1.get_ylim()
+                new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
+                if new_rmax > min_ylim:
+                    self.ax1.set_ylim(rmin, new_rmax)
+        if self.mode == 2:
+            if self.ax1 is not None and self.ax2 is not None:
+                rmin1, rmax1 = self.ax1.get_ylim()
+                new_rmax1 = max(min(rmax1 * factor, max_ylim), min_ylim)
+                if new_rmax1 > min_ylim:
+                    self.ax1.set_ylim(rmin1, new_rmax1)
+                rmin2, rmax2 = self.ax2.get_ylim()
+                new_rmax2 = max(min(rmax2 * factor, max_ylim), min_ylim)
+                if new_rmax2 > min_ylim:
+                    self.ax2.set_ylim(rmin2, new_rmax2)
+        self.draw()
+class Fig3D(FigureCanvas):
     def __init__(self,  parent=None):
-        super().__init__(parent)
+        self.fig = Figure(figsize=[12,8 ])
+        super().__init__(self.fig)
+        if parent:
+            self.setParent(parent)
         self.ax3 = None
+        self.color = 'plasma'
     def setupAX3(self):
         self.ax3 = self.fig.add_subplot(111, projection='3d')
-    
+    def zoom_in(self, factor=0.8):
+        """Zoom in on the 3D axes by reducing the limits, with bounds checking."""
+        if self.ax3 is not None:
+            # Set minimum width for each axis to avoid collapsing
+            min_width = 1e-3
+            for axis, set_lim, axis_name in [
+                (self.ax3.get_xlim, self.ax3.set_xlim, 'x'),
+                (self.ax3.get_ylim, self.ax3.set_ylim, 'y'),
+                (self.ax3.get_zlim, self.ax3.set_zlim, 'z')
+            ]:
+                lim = axis()
+                center = (lim[0] + lim[1]) / 2
+                width = (lim[1] - lim[0]) * factor / 2
+                # Enforce minimum width
+                width = max(width, min_width)
+                new_lim = (center - width, center + width)
+                set_lim(new_lim)
+            self.draw()
+    def zoom_out(self, factor=1.25):
+        """Zoom out on the 3D axes by increasing the limits, with bounds checking."""
+        if self.ax3 is not None:
+            # Set maximum width for each axis to avoid excessive zoom out
+            max_width = 1e6
+            for axis, set_lim, axis_name in [
+                (self.ax3.get_xlim, self.ax3.set_xlim, 'x'),
+                (self.ax3.get_ylim, self.ax3.set_ylim, 'y'),
+                (self.ax3.get_zlim, self.ax3.set_zlim, 'z')
+            ]:
+                lim = axis()
+                center = (lim[0] + lim[1]) / 2
+                width = (lim[1] - lim[0]) * factor / 2
+                # Enforce maximum width
+                width = min(width, max_width)
+                new_lim = (center - width, center + width)
+                set_lim(new_lim)
+            self.draw()
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.main = Ui_MainWindow(self) 
-        # custom toolbar
-        
+        self.view = Ui_Window()
+        self.view.setupUi(self)
+
+        # Create your figures
         self.fig2D = Fig2D(self)
         self.fig3D = Fig3D(self)
-        self.main.frame.layout().addWidget(self.fig2D)
-        self.main.frame_2.layout().addWidget(self.fig3D)
-        self.toolbar1 = NavigationToolbar(self.fig2D,self)
-        self.toolbar2 = NavigationToolbar(self.fig3D,self)
-        self.main.frame.layout().addWidget(self.toolbar1)
-        self.main.frame_2.layout().addWidget(self.toolbar2)
-        self.h_color = 'b'
-        self.e_color = 'red'
-        
 
+        # Create toolbars
+        self.toolbar1 = NavigationToolbar(self.fig2D, self)
+        self.toolbar2 = NavigationToolbar(self.fig3D, self)
 
-    
+        # Add FigureCanvas and NavigationToolbar to the view's layouts
+        self.view.tab1_canvas_layout.addWidget(self.toolbar1)
+        self.view.tab1_canvas_layout.addWidget(self.fig2D)
+        self.view.tab2_canvas_layout.addWidget(self.toolbar2)
+        self.view.tab2_canvas_layout.addWidget(self.fig3D)
 
-    def pick_color_for(self, plane='h'):
+   
+# pick a color 
+    def pick_color_for(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Select Plane")
+        msg.setText("Which plane's color do you want to change?")
+        h_button = msg.addButton("H-plane", QMessageBox.AcceptRole)
+        e_button = msg.addButton("E-plane", QMessageBox.AcceptRole)
+        msg.exec()
+
+        if msg.clickedButton() == h_button:
+            plane = 'h'
+        elif msg.clickedButton() == e_button:
+            plane = 'e'
+        else:
+            return  # User closed dialog
+
         color = QColorDialog.getColor()
-
         if color.isValid():
-            hex_color = color.name()  # '#rrggbb'
+            hex_color = color.name()
             if plane == 'h':
-                self.h_color = hex_color
+                self.fig2D.color_h = hex_color
             elif plane == 'e':
-                self.e_color = hex_color
+                self.fig2D.color_e = hex_color
     def open_file(self):
             dialog = QFileDialog()
             dialog.setFileMode(QFileDialog.AnyFile)
@@ -74,34 +173,42 @@ class Window(QMainWindow):
             if dialog.exec():
                  file_name = dialog.selectedFiles()[0]
                  return file_name
-    def plot_2D(self ,h,e,mode):
+    def file_history(self):
+        file_dialog = QFileDialog()
+        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+        file_dialog.setNameFilter("JSON Files (*.json)")
+        file_dialog.setDefaultSuffix("json")
+        if file_dialog.exec():
+            return file_dialog.selectedFiles()[0]
+    
 
-        if not e or not h :
-            raise ValueError
-        else:
+        
+    def plot_2D(self ,h,e):
+
+        
             # calculate the angles 
             theta_h = np.radians(np.arange(len(h)))  
             theta_e = np.radians(np.arange(len(e)))
-            if mode == 1: # plot in the same place
+            if self.fig2D.mode == 1: # plot in the same place
                 self.fig2D.ax1.clear()
-                self.fig2D.ax1.plot(theta_h,e, label='E-plane', color=self.h_color)
-                self.fig2D.ax1.plot(theta_e, h, label='H-plane', color=self.e_color)
+                self.fig2D.ax1.plot(theta_e,e, label='E-plane', color =  self.fig2D.color_e)
+                self.fig2D.ax1.plot(theta_h, h, label='H-plane', color =  self.fig2D.color_h)
                 self.fig2D.ax1.set_title("H_palne and E_plane ")
                 self.fig2D.ax1.legend()
-                self.fig2D.ax1.draw()
+                self.fig2D.draw()
                 self.toolbar1.push_current()   
             #maybe color change here
             else :
                 self.fig2D.ax1.clear()
                 self.fig2D.ax2.clear()
-                self.fig2D.ax1.plot(theta_h, h, label='H-plane', color=self.h_color)
+                self.fig2D.ax1.plot(theta_h, h, label='H-plane',color =  self.fig2D.color_h)
                 self.fig2D.ax1.set_title('H-plane Pattern (dB)')
                 
                 
                 self.fig2D.ax1.legend()
 
                 # Plot E-plane
-                self.fig2D.ax2.plot(theta_e, e, label='E-plane', color=self.e_color)
+                self.fig2D.ax2.plot(theta_e, e, label='E-plane', color =  self.fig2D.color_e)
                 self.fig2D.ax2.set_title('E-plane Pattern (dB)')
                 self.fig2D.ax2.legend()
                 self.fig2D.ax2.set_theta_direction(-1)
@@ -109,28 +216,100 @@ class Window(QMainWindow):
                 self.fig2D.draw()
                 
                 # Push the current view to the navigation stack
-                self.toolbar2.push_current()    
+                self.toolbar1.push_current()    
         
-    def plot_3D(self, x,y ,z):
-        surf = self.fig3D.ax3.plot_surface(x, y, z, cmap='viridis', edgecolor='none', alpha=0.8)
-        self.fig3D.colorbar(surf, ax=self.fig3D.ax3, shrink=0.5, label='Radiation Intensity (linear)')
+    from matplotlib.figure import Figure
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+import numpy as np
 
-        self.fig3D.ax3.set_title('3D Antenna Radiation Pattern (Matplotlib)')
-        self.fig3D.ax3.set_xlabel('X')
-        self.fig3D.ax3.set_ylabel('Y')
-        self.fig3D.ax3.set_zlabel('Z')
-        self.fig3D.ax3.view_init(elev=30, azim=45)           
-        self.fig3D.draw()         
+class Fig3D(FigureCanvasQTAgg):
+    def __init__(self, parent=None, figsize=(8, 6)):
+        # 1. Create and pass the Figure into the FigureCanvas
+        fig = Figure(figsize=figsize)
+        super().__init__(fig)
+        if parent:
+            self.setParent(parent)
 
-
-
-
-
-
+        # 2. Create the 3D axes exactly once
+        self.ax3 = self.figure.add_subplot(111, projection='3d')
         
+        # 3. Placeholder for the colorbar so we can remove it later
+        self._cbar = None
 
-                   
+        # Default colormap
+        self.cmap = 'plasma'
 
-        
-            
-        
+    def plot_surface(self, X, Y, Z):
+        # 4a. Clear just the axes (not the entire figure)
+        self.ax3.clear()
+        # 4b. If there was a previous colorbar, remove it
+        if self._cbar:
+            self._cbar.remove()
+            self._cbar = None
+
+        # 5. Plot and add a single colorbar
+        surf = self.ax3.plot_surface(
+            X, Y, Z,
+            cmap=self.cmap,
+            edgecolor='none',
+            alpha=0.8
+        )
+        self._cbar = self.figure.colorbar(
+            surf, ax=self.ax3, shrink=0.5,
+            label='Radiation Intensity (linear)'
+        )
+
+        # 6. Restore labels and view
+        self.ax3.set_title('3D Antenna Radiation Pattern')
+        self.ax3.set_xlabel('X')
+        self.ax3.set_ylabel('Y')
+        self.ax3.set_zlabel('Z')
+        self.ax3.view_init(elev=30, azim=45)
+
+        # 7. Trigger a redraw
+        self.draw()
+
+    def zoom_in(self, factor=0.8):
+        if not self.ax3: 
+            return
+        min_width = 1e-3
+        for getter, setter in [
+            (self.ax3.get_xlim, self.ax3.set_xlim),
+            (self.ax3.get_ylim, self.ax3.set_ylim),
+            (self.ax3.get_zlim, self.ax3.set_zlim),
+        ]:
+            lo, hi = getter()
+            center = 0.5*(lo+hi)
+            half = max((hi-lo)*factor/2, min_width)
+            setter((center-half, center+half))
+        self.draw()
+
+    def zoom_out(self, factor=1.25):
+        if not self.ax3:
+            return
+        max_width = 1e6
+        for getter, setter in [
+            (self.ax3.get_xlim, self.ax3.set_xlim),
+            (self.ax3.get_ylim, self.ax3.set_ylim),
+            (self.ax3.get_zlim, self.ax3.set_zlim),
+        ]:
+            lo, hi = getter()
+            center = 0.5*(lo+hi)
+            half = min((hi-lo)*factor/2, max_width)
+            setter((center-half, center+half))
+        self.draw()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

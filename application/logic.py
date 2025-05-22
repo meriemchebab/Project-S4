@@ -2,18 +2,16 @@ from PySide6.QtCore import QObject
 import numpy as np 
 from scipy.signal import savgol_filter
 
-class Model(QObject):
+class Model():
     def __init__(self, parent =None):
-        super().__init__(parent)
+        
         self.h_plane2D = None
         self.e_plane2D = None
         self.h_plane3D = None
         self.e_plane3D = None
         self.h_plane = None
         self.e_plane = None
-        self.X = None
-        self.Y = None
-        self.Z = None
+        self.max = None
 
         
     def read_file(self,file_path):
@@ -64,6 +62,15 @@ class Model(QObject):
         elif mode == "3D" and self.h_plane3D is not None and self.e_plane3D is not None:
             self.h_plane3D = self.h_plane3D - np.max(self.h_plane3D)
             self.e_plane3D = self.e_plane3D - np.max(self.e_plane3D)
+    def denormalize(self,mode):
+        self.max = np.max(self.h_plane)
+        if mode == "2D" and self.h_plane2D is not None and self.e_plane2D is not None:
+            self.h_plane2D = self.h_plane2D + self.max
+            self.e_plane2D = self.e_plane2D + self.max
+
+        elif mode == "3D" and self.h_plane3D is not None and self.e_plane3D is not None:
+            self.h_plane3D = self.h_plane3D + self.max
+            self.e_plane3D = self.e_plane3D + self.max
 
 
     def smooth(self, number, mode):
@@ -74,14 +81,16 @@ class Model(QObject):
             # Always smooth from original clean data
             smoothed_h = savgol_filter(self.h_plane, window_length=number, polyorder=2)
             smoothed_e = savgol_filter(self.e_plane, window_length=number, polyorder=2)
-
+            
             if mode == '2D':
                 self.h_plane2D = smoothed_h
                 self.e_plane2D = smoothed_e
+                # always normlize after smmohting
+                self.normalize("2D")
             elif mode == '3D':
                 self.h_plane3D = smoothed_h
                 self.e_plane3D = smoothed_e
-
+                self.normalize("3D")
     def data_3D(self):
         size = len(self.h_plane)
         theta = np.linspace(0, 2 * np.pi,size)
@@ -93,19 +102,9 @@ class Model(QObject):
         r = (np.outer(self.h_plane3D, np.ones_like(self.e_plane3D)) + np.outer(np.ones_like(self.h_plane3D),self.e_plane3D )) / 2
 
         # Convert spherical to cartesian
-        self.X = r * np.sin(phi) * np.cos(theta)
-        self.Y = r * np.sin(phi) * np.sin(theta)
-        self.Z = r * np.cos(phi)
-    def reset_processed_data(self, mode='all'):
+        X = r * np.sin(phi) * np.cos(theta)
+        Y = r * np.sin(phi) * np.sin(theta)
+        Z = r * np.cos(phi)
+        return X,Y,Z
     
-    #Reset smoothed and normalized data for 2D, 3D, or both.
-    
-    #mode: '2D', '3D', or 'all'
-    
-        if mode == '2D' or mode == 'all':
-            self.h_plane2D = None
-            self.e_plane2D = None
 
-        if mode == '3D' or mode == 'all':
-            self.h_plane3D = None
-            self.e_plane3D = None

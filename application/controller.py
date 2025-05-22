@@ -1,23 +1,67 @@
 from logic import Model
 from UI_file import Window
 from PySide6.QtCore import QObject
-
+from PySide6.QtWidgets import QMessageBox
+import json
+import numpy as np
 class Controler(QObject):
     def __init__(self  ,  parent = None):
         super().__init__(parent)
         self.model=Model(self)
-        self.ui = Window(self)
-        self.mode = None
+        self.ui = Window()  # Remove self as argument
+        
         self.listHistory = {
-                 "h_plane":[],
-                "e_plane":[],
+                 "h_plane2D":[],
+                "e_plane2D":[],
+                "h_plane3D":[],
+                "e_plane3D":[],
+                "e_color":[],
+                "h_color" : []
+                ,"3d_color":[]
             }
         self.index = -1
+        self.i = -1
         # the signals and slots 
+        
+        self.ui.view.import_button.clicked.connect(self.read)
+        self.ui.view.plot_3d_button.clicked.connect(self.polar_3D)
+        self.ui.view.display_mode_menu.actions()[0].triggered.connect(self.polar_2D_split)
+        self.ui.view.display_mode_menu.actions()[1].triggered.connect(self.polar_2D_same)
 
-        self.ui.main.button.clicked.connect(self.read)
+        self.ui.view.offset_button.clicked.connect(self.normal)
+
+       
+        self.ui.view.zoom_in_button1.clicked.connect(self.ui.fig2D.zoom_in)
+        self.ui.view.zoom_out_button1.clicked.connect(self.ui.fig2D.zoom_out)
+        self.ui.view.zoom_in_button2.clicked.connect(self.ui.fig3D.zoom_in)
+        self.ui.view.zoom_out_button2.clicked.connect(self.ui.fig3D.zoom_out)
+        self.ui.view.color_button3D.clicked.connect(self.color_3D)
+        self.ui.view.color_button1.clicked.connect(self.color_2D)
+
+        self.ui.view.back_button1.clicked.connect(self.GoBack)
+        self.ui.view.next_button1.clicked.connect(self.GoForth)
+        self.ui.view.back_button2.clicked.connect(self.GoBack)
+        self.ui.view.next_button2.clicked.connect(self.GoForth)
+
+        # In your controller __init__ after self.ui.view is created:
+        self.ui.view.smoothness_slider1.valueChanged.connect(self.smooth_2D)
+        self.ui.view.smoothness_slider2.valueChanged.connect(self.smooth_3D)
+
+
+#self.smoothness_slider1.valueChanged.connect(controller.smooth_2D)
+
+#self.smoothness_slider2.valueChanged.connect(controller.smooth_3D)
 
         
+
+
+
+
+
+
+
+
+
 #reading a file
 
     def read(self):
@@ -26,12 +70,26 @@ class Controler(QObject):
             self.model.read_file(file_name)
             
             # this is the history i take a reference of the data so i can go back to it 
-            Hdata = self.model.h_plane
-            Edata = self.model.e_plane
+            Hdata2= self.model.h_plane2D.copy()
+            Edata2 = self.model.e_plane2D.copy()
+            Hdata3 = self.model.h_plane3D.copy()
+            Edata3 = self.model.e_plane3D.copy()
+            color2e =self.ui.fig2D.color_e
+            color2h =self.ui.fig2D.color_h
+            color3D = self.ui.fig3D.color
 
-            self.listHistory["h_plane"].append(Hdata)
-            self.listHistory["e_plane"].append(Edata)
+            self.listHistory["h_plane2D"].append(Hdata2)
+            self.listHistory["e_plane2D"].append(Edata2)
+            self.listHistory["h_plane3D"].append(Hdata3)
+            self.listHistory["e_plane3D"].append(Edata3)
+            self.listHistory["e_color"].append(color2e)
+            self.listHistory["h_color"].append(color2h)
+            self.listHistory["3d_color"].append(color3D)
+            
             self.index +=1
+            self.limitListSize()
+            # now update the slider max , if we read 72 value or 360 it will change
+            self.update_smooth_slider()
             # when the previos button clik
             # go for this
     def can_goBack(self):
@@ -41,47 +99,163 @@ class Controler(QObject):
                 return False
 
     def can_goForth(self):
-          return self.index < len(self.listHistory["h_plane"])-1
+          return self.index < len(self.listHistory["h_plane2D"])-1
              
             #index = length(self.listHistory["h_plane"]) - 1
     def GoBack(self):
           if self.can_goBack():
             self.index -=1
-            self.model.h_plane = self.listHistory["h_plane"][self.index]
-            self.model.e_plane = self.listHistory["e_plane"][self.index]
-            self.model.clear_data()
-# forth buton 
+            self.model.h_plane2D = self.listHistory["h_plane2D"][self.index]
+            self.model.e_plane2D = self.listHistory["e_plane2D"][self.index]
+            self.model.h_plane3D = self.listHistory["h_plane3D"][self.index]
+            self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
+            self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
+            self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
+            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            self.update_smooth_slider()
+            
     def GoForth(self):
          if  self.can_goForth():
             self.index +=1
-            self.model.h_plane = self.listHistory["h_plane"][self.index]
-            self.model.e_plane = self.listHistory["e_plane"][self.index]          
-            self.model.clear_data()
+            self.model.h_plane2D = self.listHistory["h_plane2D"][self.index]
+            self.model.e_plane2D = self.listHistory["e_plane2D"][self.index]
+            self.model.h_plane3D = self.listHistory["h_plane3D"][self.index]
+            self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
+            self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
+            self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
+            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            self.update_smooth_slider()          
+    def limitListSize(self):
+         i = len(self.listHistory["h_plane2D"]) - 1
+         if i>6 :
+            self.listHistory["h_plane2D"].pop(0) 
+            self.listHistory["e_plane2D"].pop(0) 
+            self.listHistory["h_plane3D"].pop(0) 
+            self.listHistory["e_plane3D"].pop(0) 
+            self.listHistory["h_color"].pop(0) 
+            self.listHistory["e_color"].pop(0) 
+            self.listHistory["3d_color"].pop(0) 
+                     
     def polar_2D_same(self):
-         self.ui.fig2D.clf()
-         self.mode = 1
-         self.ui.fig2D.update_ax2(self.mode)
-         self.ui.plot_2D(self.mode)
+         self.ui.fig2D.fig.clf()
+         self.ui.fig2D.mode = 1
+         self.ui.fig2D.update_ax2()
+         self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
     def polar_2D_split(self):
-        self.ui.fig2D.figure.clf()
-        self.mode = 2
-        self.ui.fig2D.update_ax2(self.mode)
-        self.ui.plot_2D(self.model.h_plane,self.model.e_plane ,self.mode) 
+        self.ui.fig2D.fig.clf()
+        self.ui.fig2D.mode = 2
+        self.ui.fig2D.update_ax2()
+        self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D ) 
     def polar_3D(self):
-      self.ui.fig3D.figure.clf()
+      # make new figure
+      self.ui.fig3D.fig.clf()
       self.ui.fig3D.setupAX3()
-      self.ui.plot_3D()
+      # calculate the 3D data 
+      X,Y,Z = self.model.data_3D()
+      self.ui.plot_3D(X,Y,Z)
     def normal(self):
-         
+        if self.ui.view.offset_button.isChecked():
 
-
-         
-         
-# this for the smooth set the max to be dinamic
-    #max_window = len(self.h_plane) // 5
-    #if max_window % 2 == 0:
-       # max_window -= 1
-    #slider.setRange(5, max_window)
-     
+            self.model.normalize('2D')
+            self.model.normalize('3D')
+            self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+        else :
+            self.model.denormalize('2D')
+            self.model.denormalize('3D')
+            self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D)
+    def smooth_3D(self ,number):
+        self.model.smooth(number,"3D")
+        X,Y,Z = self.model.data_3D()
         
+        self.ui.plot_3D(X,Y,Z)
+    def smooth_2D(self ,number):
+        self.model.smooth(number,"2D")
+        self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D) 
+        # you have to set the max window for the slider
+    def update_smooth_slider(self):
+    # Assume self.model.h_plane is your current data array
+        data_len = len(self.model.h_plane)
+        max_window = max(5, data_len // 5)
+        if max_window % 2 == 0:
+            max_window -= 1
+        self.ui.view.smoothness_slider1.setRange(5, max_window)
+    def color_2D(self):
+         self.ui.pick_color_for()
+         self.ui.plot_2D(self.model.h_plane2D,self.model.e_plane2D) 
+    def color_3D(self):
+        COLORMAPS_3D = (
+            "viridis",
+            "plasma",
+            "inferno",
+            "magma",
+            "cividis",
+            "jet",
+            "coolwarm",
+            "turbo",
+            "rainbow",
+            "hsv"
+        )
+        self.i = (self.i + 1) % len(COLORMAPS_3D)
+        self.ui.fig3D.color = COLORMAPS_3D[self.i]
+        X, Y, Z = self.model.data_3D()
+        self.ui.plot_3D(X, Y, Z)
+     
+
+    def load_project(self):
+         # read from a json file        
+        file_path = self.ui.file_history("open")
+        
+        
+        
+        with open(file_path, 'r') as f:
+            loaded_history = json.load(f)
+        # Convert lists back to numpy arrays where appropriate
+        
+        for k, v in loaded_history.items():
+            self.listHistory[k] = []
+            for item in v:
+                if k.endswith('plane2D') or k.endswith('plane3D'):
+                    self.listHistory[k].append(np.array(item))
+                else:
+                    self.listHistory[k].append(item)
+        self.index = len(self.listHistory["h_plane2D"]) - 1
+        # Restore the latest state to the model/UI
+        try:
+            QMessageBox.information(self, "Success", f"Project loaded from {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load project: {e}")
+        if self.index >= 0:
+            self.model.h_plane2D = self.listHistory["h_plane2D"][self.index]
+            self.model.e_plane2D = self.listHistory["e_plane2D"][self.index]
+            self.model.h_plane3D = self.listHistory["h_plane3D"][self.index]
+            self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
+            self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
+            self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
+            self.ui.fig3D.color = self.listHistory["3d_color"][self.index]
+            # Redraw plots
+        self.update_smooth_slider()       
+            
+    def save_project(self):
+        file_path = self.ui.file_history("save")
+            # Convert all numpy arrays to lists for JSON serialization
+        serializable_history = {}
+        for k, v in self.listHistory.items():
+            serializable_history[k] = []
+            for item in v:
+                try:
+                    serializable_history[k].append(item.tolist())
+                except AttributeError:
+                    serializable_history[k].append(item)
+        try:
+            with open(file_path, 'w') as f:
+                json.dump(serializable_history, f)
+            QMessageBox.information(self.ui, "Success", f"Project saved to {file_path}")
+        except Exception as e:
+            QMessageBox.critical(self.ui, "Error", f"Failed to save project: {e}")
+
+
+
+
+
+
 
