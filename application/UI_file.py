@@ -106,7 +106,25 @@ class Fig3D(FigureCanvas):
         self._cbar = None
         self.cmap = 'plasma'
         self.dark_mode = dark_mode
+        # Store original data and view settings
+        self.original_X = None
+        self.original_Y = None
+        self.original_Z = None
+        self.has_data = False
+        self.default_view = {'elev': 30, 'azim': 45}
         self.update_figure_style()
+
+    def store_original_view(self):
+        """Store the original 3D view settings"""
+        if self.has_data:
+            try:
+                self.original_xlim = self.ax3.get_xlim()
+                self.original_ylim = self.ax3.get_ylim()
+                self.original_zlim = self.ax3.get_zlim()
+                self.original_elev = self.ax3.elev
+                self.original_azim = self.ax3.azim
+            except:
+                pass
 
     def update_figure_style(self):
         """Update figure colors based on dark mode"""
@@ -149,6 +167,11 @@ class Fig3D(FigureCanvas):
         self.draw()
 
     def plot_surface(self, X, Y, Z):
+        # Store original data
+        self.original_X = np.array(X) if X is not None else None
+        self.original_Y = np.array(Y) if Y is not None else None  
+        self.original_Z = np.array(Z) if Z is not None else None
+        self.has_data = True
         self.ax3.clear()
         # Safely remove previous colorbar if it exists and is still valid
         if self._cbar:
@@ -158,7 +181,6 @@ class Fig3D(FigureCanvas):
             except Exception as e:
                 print(f"Warning: Failed to remove previous colorbar: {e}")
             self._cbar = None
-
         surf = self.ax3.plot_surface(
             X, Y, Z,
             cmap=self.cmap,
@@ -174,6 +196,8 @@ class Fig3D(FigureCanvas):
         self.ax3.set_ylabel('Y')
         self.ax3.set_zlabel('Z')
         self.ax3.view_init(elev=30, azim=45)
+        # Store the view settings after plotting
+        self.store_original_view()
         self.draw()
 
     def change_colormap(self, cmap_name):
@@ -194,32 +218,54 @@ class Fig3D(FigureCanvas):
             # Optionally, you could call plot_surface again with stored data if you keep it
 
     def zoom_in(self):
-        # Zoom in for 3D: scale all axes limits by 0.9 (like plot_master)
-        if self.ax3:
-            for getter, setter in [
-                (self.ax3.get_xlim, self.ax3.set_xlim),
-                (self.ax3.get_ylim, self.ax3.set_ylim),
-                (self.ax3.get_zlim, self.ax3.set_zlim),
-            ]:
-                lo, hi = getter()
-                center = 0.5 * (lo + hi)
-                half = (hi - lo) * 0.9 / 2
-                setter((center - half, center + half))
-            self.draw()
+        """Fixed zoom in for 3D that preserves view integrity"""
+        if self.ax3 and self.has_data:
+            try:
+                # Get current limits
+                xlim = self.ax3.get_xlim()
+                ylim = self.ax3.get_ylim()
+                zlim = self.ax3.get_zlim()
+                # Scale each axis by 0.9 around center
+                for lim, setter in [(xlim, self.ax3.set_xlim), 
+                                   (ylim, self.ax3.set_ylim), 
+                                   (zlim, self.ax3.set_zlim)]:
+                    lo, hi = lim
+                    center = 0.5 * (lo + hi)
+                    half = (hi - lo) * 0.9 / 2
+                    setter((center - half, center + half))
+                # Update stored limits
+                self.store_original_view()
+                self.draw_idle()
+            except Exception as e:
+                print(f"Error in 3D zoom in: {e}")
 
     def zoom_out(self):
-        # Zoom out for 3D: scale all axes limits by 1.1 (like plot_master)
-        if self.ax3:
-            for getter, setter in [
-                (self.ax3.get_xlim, self.ax3.set_xlim),
-                (self.ax3.get_ylim, self.ax3.set_ylim),
-                (self.ax3.get_zlim, self.ax3.set_zlim),
-            ]:
-                lo, hi = getter()
-                center = 0.5 * (lo + hi)
-                half = (hi - lo) * 1.1 / 2
-                setter((center - half, center + half))
-            self.draw()
+        """Fixed zoom out for 3D that preserves view integrity"""
+        if self.ax3 and self.has_data:
+            try:
+                # Get current limits
+                xlim = self.ax3.get_xlim()
+                ylim = self.ax3.get_ylim()
+                zlim = self.ax3.get_zlim()
+                # Scale each axis by 1.1 around center
+                for lim, setter in [(xlim, self.ax3.set_xlim), 
+                                   (ylim, self.ax3.set_ylim), 
+                                   (zlim, self.ax3.set_zlim)]:
+                    lo, hi = lim
+                    center = 0.5 * (lo + hi)
+                    half = (hi - lo) * 1.1 / 2
+                    setter((center - half, center + half))
+                # Update stored limits
+                self.store_original_view()
+                self.draw_idle()
+            except Exception as e:
+                print(f"Error in 3D zoom out: {e}")
+
+    def reset_view(self):
+        """Reset to original 3D view"""
+        if self.has_data and all(x is not None for x in [self.original_X, self.original_Y, self.original_Z]):
+            # Replot with original data to reset everything
+            self.plot_surface(self.original_X, self.original_Y, self.original_Z)
 
 class Fig2D(FigureCanvas):
     def __init__(self, parent=None, figsize=(12, 8), dark_mode=False):
@@ -228,14 +274,42 @@ class Fig2D(FigureCanvas):
         super().__init__(fig)
         if parent:
             self.setParent(parent)
-        
         self.color_h = "blue"
         self.color_e = "red"
         self.ax1 = self.figure.add_subplot(121, polar=True)
         self.ax2 = self.figure.add_subplot(122, polar=True)
         self.use_two_plots = True
         self.dark_mode = dark_mode
+        # Store original data and limits to prevent toolbar interference
+        self.original_data_h = None
+        self.original_data_e = None
+        self.default_ylim = (0, 1)
+        self.has_data = False
         self.update_figure_style()
+
+    def store_original_limits(self):
+        """Store the original axis limits after plotting data"""
+        if self.has_data:
+            try:
+                # Store limits for both axes
+                self.ax1_original_ylim = self.ax1.get_ylim()
+                self.ax2_original_ylim = self.ax2.get_ylim()
+            except:
+                self.ax1_original_ylim = self.default_ylim
+                self.ax2_original_ylim = self.default_ylim
+
+    def restore_proper_limits(self):
+        """Restore proper limits after toolbar interference"""
+        if self.has_data:
+            try:
+                # Restore stored limits or use defaults
+                if hasattr(self, 'ax1_original_ylim'):
+                    self.ax1.set_ylim(self.ax1_original_ylim)
+                if hasattr(self, 'ax2_original_ylim'):
+                    self.ax2.set_ylim(self.ax2_original_ylim)
+                self.draw_idle()
+            except Exception as e:
+                print(f"Warning: Could not restore limits: {e}")
 
     def update_figure_style(self):
         """Update figure colors based on dark mode"""
@@ -263,16 +337,18 @@ class Fig2D(FigureCanvas):
         self.use_two_plots = two_plots
 
     def plot_2D(self, h, e):
+        # Store original data
+        self.original_data_h = np.array(h) if h is not None else None
+        self.original_data_e = np.array(e) if e is not None else None
+        self.has_data = True
         self.ax1.clear()
         self.ax2.clear()
         theta_h = np.radians(np.arange(len(h)))  
         theta_e = np.radians(np.arange(len(e)))
-        
         if self.use_two_plots:
             self.ax1.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
             self.ax1.set_title('H-plane')
             self.ax1.legend()
-
             self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title("E-plane")
             self.ax2.set_theta_zero_location("N")
@@ -283,48 +359,70 @@ class Fig2D(FigureCanvas):
             self.ax1.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
             self.ax1.set_title('H & E overlay')
             self.ax1.legend()
-            
             self.ax2.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
             self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title('H & E rotated')
             self.ax2.set_theta_zero_location("N")
             self.ax2.set_theta_direction(-1)
             self.ax2.legend()
-        
         self.update_figure_style()
+        # Store original limits after plotting
+        self.store_original_limits()
         self.draw()
 
     def zoom_in(self, factor=0.8):
+        """Fixed zoom in that preserves polar plot integrity"""
         min_ylim = 1e-3
         max_ylim = 1e6
-        
         for ax in [self.ax1, self.ax2]:
-            if ax is not None:
+            if ax is not None and self.has_data:
                 try:
                     rmin, rmax = ax.get_ylim()
-                    new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
-                    if new_rmax > min_ylim:
-                        ax.set_ylim(rmin, new_rmax)
+                    # Calculate new range
+                    range_size = rmax - rmin
+                    new_range = range_size * factor
+                    center = (rmin + rmax) / 2
+                    new_rmin = max(center - new_range/2, 0)  # Don't go below 0 for polar
+                    new_rmax = min(center + new_range/2, max_ylim)
+                    new_rmax = max(new_rmax, min_ylim)  # Ensure minimum range
+                    if new_rmax > new_rmin:
+                        ax.set_ylim(new_rmin, new_rmax)
                 except Exception as e:
                     print(f"Error zooming axis: {e}")
                     continue
-        self.draw()
+        # Update stored limits
+        self.store_original_limits()
+        self.draw_idle()
 
     def zoom_out(self, factor=1.25):
+        """Fixed zoom out that preserves polar plot integrity"""
         min_ylim = 1e-3
         max_ylim = 1e6
-        
         for ax in [self.ax1, self.ax2]:
-            if ax is not None:
+            if ax is not None and self.has_data:
                 try:
                     rmin, rmax = ax.get_ylim()
-                    new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
-                    if new_rmax > min_ylim:
-                        ax.set_ylim(rmin, new_rmax)
+                    # Calculate new range
+                    range_size = rmax - rmin
+                    new_range = range_size * factor
+                    center = (rmin + rmax) / 2
+                    new_rmin = max(center - new_range/2, 0)  # Don't go below 0 for polar
+                    new_rmax = min(center + new_range/2, max_ylim)
+                    new_rmax = max(new_rmax, min_ylim)  # Ensure minimum range
+                    if new_rmax > new_rmin:
+                        ax.set_ylim(new_rmin, new_rmax)
                 except Exception as e:
                     print(f"Error zooming axis: {e}")
                     continue
-        self.draw()
+        # Update stored limits
+        self.store_original_limits()
+        self.draw_idle()
+
+    def reset_view(self):
+        """Reset to original view after plotting"""
+        if self.has_data and self.original_data_h is not None and self.original_data_e is not None:
+            # Replot with original data to reset everything
+            self.plot_2D(self.original_data_h, self.original_data_e)
 
 class Ui_Window:
     def setupUi(self, MainWindow):
@@ -515,18 +613,15 @@ class Ui_Window:
         self.back_button2 = QPushButton("Back")
         self.back_button2.setIcon(QIcon.fromTheme("go-previous"))
         
-        self.smooth_label2 = QLabel("Smooth:")
-        self.smoothness_slider2 = QSlider(Qt.Horizontal)
-        self.smoothness_slider2.setRange(0, 11)
-        self.smoothness_slider2.setValue(0)
-        
+        self.smooth_button = QPushButton("Smooth")
+        self.smooth_button.setCheckable(True)
         
         self.next_button2 = QPushButton("Next")
         self.next_button2.setIcon(QIcon.fromTheme("go-next"))
         
         controls_layout2.addWidget(self.back_button2)
-        controls_layout2.addWidget(self.smooth_label2)
-        controls_layout2.addWidget(self.smoothness_slider2)
+        controls_layout2.addWidget(self.smooth_button)
+        
         controls_layout2.addWidget(self.next_button2)
         
         tab2_layout.addLayout(controls_layout2)
@@ -699,9 +794,9 @@ class Ui_Window:
         main_buttons = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button,
+            self.online_view_button, self.show_details_button,self.color_button1,
             
-            self.color_button3D, self.zoom_in_button2, self.zoom_out_button2
+            self.color_button3D, self.zoom_in_button2, self.zoom_out_button2, self.smooth_button
         ]
         
         nav_buttons = [
@@ -729,9 +824,8 @@ class Window(QMainWindow):
         self.fig2D = Fig2D(self, figsize=(10, 6), dark_mode=self.view.dark_mode)
         self.fig3D = Fig3D(self, figsize=(8, 6), dark_mode=self.view.dark_mode)
 
-        # Create toolbars
-        self.toolbar1 = NavigationToolbar(self.fig2D, self)
-        self.toolbar2 = NavigationToolbar(self.fig3D, self)
+        # Create custom toolbars with reset functionality
+        self.setup_custom_toolbars()
 
         # Add figures and toolbars to layouts
         self.view.tab1_canvas_layout.addWidget(self.toolbar1)
@@ -741,6 +835,8 @@ class Window(QMainWindow):
         
         # Connect theme toggle
         self.view.theme_toggle.stateChanged.connect(self.toggle_theme)
+        # Connect custom reset buttons
+        self.connect_toolbar_events()
 
     def toggle_theme(self, state):
         is_dark = bool(state)
@@ -799,6 +895,62 @@ class Window(QMainWindow):
         if file_dialog.exec():
             return file_dialog.selectedFiles()[0]
         return None
+
+    def setup_custom_toolbars(self):
+        """Create custom toolbars with reset functionality"""
+        self.toolbar1 = NavigationToolbar(self.fig2D, self)
+        self.toolbar2 = NavigationToolbar(self.fig3D, self)
+        # Add custom reset actions to toolbars
+        reset_action1 = QAction("Reset View", self)
+        reset_action1.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        reset_action1.triggered.connect(self.fig2D.reset_view)
+        self.toolbar1.addAction(reset_action1)
+        reset_action2 = QAction("Reset View", self)
+        reset_action2.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        reset_action2.triggered.connect(self.fig3D.reset_view)
+        self.toolbar2.addAction(reset_action2)
+
+    def connect_toolbar_events(self):
+        """Connect toolbar events to fix axis drift"""
+        # Override toolbar home button behavior
+        try:
+            # Find and override home button
+            for action in self.toolbar1.actions():
+                if action.text() == 'Home':
+                    action.triggered.disconnect()  # Disconnect original
+                    action.triggered.connect(self.home_2d)
+                elif action.text() == 'Back':
+                    action.triggered.connect(self.fix_2d_after_navigation)
+                elif action.text() == 'Forward':
+                    action.triggered.connect(self.fix_2d_after_navigation)
+            for action in self.toolbar2.actions():
+                if action.text() == 'Home':
+                    action.triggered.disconnect()  # Disconnect original
+                    action.triggered.connect(self.home_3d)
+                elif action.text() == 'Back':
+                    action.triggered.connect(self.fix_3d_after_navigation)
+                elif action.text() == 'Forward':
+                    action.triggered.connect(self.fix_3d_after_navigation)
+        except Exception as e:
+            print(f"Warning: Could not override toolbar buttons: {e}")
+
+    def home_2d(self):
+        """Custom home function for 2D plots"""
+        self.fig2D.reset_view()
+
+    def home_3d(self):
+        """Custom home function for 3D plots"""
+        self.fig3D.reset_view()
+
+    def fix_2d_after_navigation(self):
+        """Fix 2D plots after toolbar navigation"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self.fig2D.restore_proper_limits)
+
+    def fix_3d_after_navigation(self):
+        """Fix 3D plots after toolbar navigation"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self.fig3D.store_original_view)
 
 
 

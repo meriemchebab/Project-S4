@@ -11,7 +11,8 @@ class Model():
         self.e_plane3D = None
         self.h_plane = None
         self.e_plane = None
-        self.max = None
+        self.maxH = None
+        self.maxE = None
 
         
     def read_file(self,file_path):
@@ -63,40 +64,48 @@ class Model():
             self.h_plane3D = self.h_plane3D - np.max(self.h_plane3D)
             self.e_plane3D = self.e_plane3D - np.max(self.e_plane3D)
     def denormalize(self,mode):
-        self.max = np.max(self.h_plane)
+        self.maxH = np.max(self.h_plane)
+        self.maxE = np.max(self.e_plane)
         if mode == "2D" and self.h_plane2D is not None and self.e_plane2D is not None:
-            self.h_plane2D = self.h_plane2D + self.max
-            self.e_plane2D = self.e_plane2D + self.max
+            self.h_plane2D = self.h_plane2D + self.maxH
+            self.e_plane2D = self.e_plane2D + self.maxE
 
         elif mode == "3D" and self.h_plane3D is not None and self.e_plane3D is not None:
-            self.h_plane3D = self.h_plane3D + self.max
-            self.e_plane3D = self.e_plane3D + self.max
+            self.h_plane3D = self.h_plane3D + self.maxH
+            self.e_plane3D = self.e_plane3D + self.maxE
 
 
-    def smooth(self, number, mode):
+    def smooth2D(self, number):
         if self.e_plane is not None and self.h_plane is not None:
             if number % 2 == 0:
                 number += 1
 
             # Always smooth from original clean data
-            smoothed_h = savgol_filter(self.h_plane, window_length=number, polyorder=2)
-            smoothed_e = savgol_filter(self.e_plane, window_length=number, polyorder=2)
             
-            if mode == '2D':
+            
+                smoothed_h = savgol_filter(self.h_plane, window_length=number, polyorder=2)
+                smoothed_e = savgol_filter(self.e_plane, window_length=number, polyorder=2)
+            
                 self.h_plane2D = smoothed_h
                 self.e_plane2D = smoothed_e
                 # always normlize after smmohting
                 self.normalize("2D")
-            elif mode == '3D':
-                self.h_plane3D = smoothed_h
-                self.e_plane3D = smoothed_e
-                self.normalize("3D")
+            
+    def smooth3D(self,bool):
+        if self.e_plane is not None and self.h_plane is not None and bool:            
+            self.h_plane3D= savgol_filter(self.h_plane, window_length=11, polyorder=2)
+            self.e_plane3D= savgol_filter(self.e_plane, window_length=11, polyorder=2)
+            self.normalize("3D")
+        else : 
+            self.h_plane3D = self.h_plane
+            self.e_plane3D = self.e_plane
+
     def data_3D(self):
         size = len(self.h_plane)
         theta = np.linspace(0, 2 * np.pi,size)
         phi = np.linspace(0, np.pi,size )
         theta, phi = np.meshgrid(theta, phi)
-
+        
         
         # Fake 3D radial values by averaging E & H
         r = (np.outer(self.h_plane3D, np.ones_like(self.e_plane3D)) + np.outer(np.ones_like(self.h_plane3D),self.e_plane3D )) / 2
