@@ -109,7 +109,25 @@ class Fig3D(FigureCanvas):
         self._cbar = None
         self.cmap = 'plasma'
         self.dark_mode = dark_mode
+        # Store original data and view settings
+        self.original_X = None
+        self.original_Y = None
+        self.original_Z = None
+        self.has_data = False
+        self.default_view = {'elev': 30, 'azim': 45}
         self.update_figure_style()
+
+    def store_original_view(self):
+        """Store the original 3D view settings"""
+        if self.has_data:
+            try:
+                self.original_xlim = self.ax3.get_xlim()
+                self.original_ylim = self.ax3.get_ylim()
+                self.original_zlim = self.ax3.get_zlim()
+                self.original_elev = self.ax3.elev
+                self.original_azim = self.ax3.azim
+            except:
+                pass
 
     def update_figure_style(self):
         """Update figure colors based on dark mode"""
@@ -121,10 +139,22 @@ class Fig3D(FigureCanvas):
             self.ax3.yaxis.label.set_color('#E0E0E0')
             self.ax3.zaxis.label.set_color('#E0E0E0')
             self.ax3.title.set_color('#E0E0E0')
-            # Set pane colors for 3D plot
-            self.ax3.xaxis.pane.fill = False
-            self.ax3.yaxis.pane.fill = False
-            self.ax3.zaxis.pane.fill = False
+
+            # Set pane colors for 3D plot (handle older/newer matplotlib versions)
+            try:
+                self.ax3.xaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.yaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.zaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.xaxis.pane.fill = False
+                self.ax3.yaxis.pane.fill = False
+                self.ax3.zaxis.pane.fill = False
+            except Exception as e:
+                try:
+                    self.ax3.xaxis.pane.fill = False
+                    self.ax3.yaxis.pane.fill = False
+                    self.ax3.zaxis.pane.fill = False
+                except Exception as e2:
+                    print(f"Warning: Could not set 3D pane fill: {e2}")
         else:
             self.figure.patch.set_facecolor('#FFFFFF')
             self.ax3.set_facecolor('#FFFFFF')
@@ -140,6 +170,11 @@ class Fig3D(FigureCanvas):
         self.draw()
 
     def plot_surface(self, X, Y, Z):
+        # Store original data
+        self.original_X = np.array(X) if X is not None else None
+        self.original_Y = np.array(Y) if Y is not None else None  
+        self.original_Z = np.array(Z) if Z is not None else None
+        self.has_data = True
         self.ax3.clear()
         # Safely remove previous colorbar if it exists and is still valid
         if self._cbar:
@@ -149,7 +184,6 @@ class Fig3D(FigureCanvas):
             except Exception as e:
                 print(f"Warning: Failed to remove previous colorbar: {e}")
             self._cbar = None
-
         surf = self.ax3.plot_surface(
             X, Y, Z,
             cmap=self.cmap,
@@ -165,130 +199,119 @@ class Fig3D(FigureCanvas):
         self.ax3.set_ylabel('Y')
         self.ax3.set_zlabel('Z')
         self.ax3.view_init(elev=30, azim=45)
+        # Store the view settings after plotting
+        self.store_original_view()
         self.draw()
-            
-        
-    def enable_click_annotation_3D(self, X, Y, Z):
-        if self.ax3 is None:
-            return
 
-        # Création d'une annotation 2D dans l'espace de la figure
-        self.annotation_box = self.fig.text(0.02, 0.92, '', fontsize=11,
-                                          bbox=dict(facecolor='lightblue', alpha=0.6, edgecolor='black'))
-
-        def on_click(event):
-            if event.inaxes != self.ax3:
-                return
-
-            # Récupérer le clic en coordonnées x/y (pixels)
-            x_click, y_click = event.x, event.y
-
-            # Transformation 3D -> 2D pour tous les points
-            from mpl_toolkits.mplot3d import proj3d
-            min_dist = float('inf')
-            closest_text = ""
-            
-            for i in range(X.shape[0]):
-                for j in range(X.shape[1]):
-                    x2D, y2D, _ = proj3d.proj_transform(X[i, j], Y[i, j], Z[i, j], self.ax3.get_proj())
-                    x_disp, y_disp = self.ax3.transData.transform((x2D, y2D))
-                    dist = np.hypot(x_click - x_disp, y_click - y_disp)
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_text = f"X: {X[i,j]:.2f}\nY: {Y[i,j]:.2f}\nZ: {Z[i,j]:.2f}"
-
-            self.annotation_box.set_text(closest_text)
+    def change_colormap(self, cmap_name):
+        """Change the colormap for the 3D surface plot and redraw if possible."""
+        self.cmap = cmap_name
+        # If a surface is already plotted, update it
+        # Try to update the colorbar and surface if present
+        try:
+            # Find the last Poly3DCollection (surface) in the axes
+            for artist in self.ax3.collections:
+                if hasattr(artist, 'set_cmap'):
+                    artist.set_cmap(self.cmap)
+            if self._cbar:
+                self._cbar.set_cmap(self.cmap)
             self.draw()
+        except Exception as e:
+            print(f"Warning: Could not update colormap directly: {e}. Replotting may be needed.")
+            # Optionally, you could call plot_surface again with stored data if you keep it
 
-        self.mpl_connect("button_press_event", on_click)
-
-    def zoom_in(self, factor=0.8):
-        min_width = 1e-3
-        for getter, setter in [
-            (self.ax3.get_xlim, self.ax3.set_xlim),
-            (self.ax3.get_ylim, self.ax3.set_ylim), 
-            (self.ax3.get_zlim, self.ax3.set_zlim),
-        ]:
+    def zoom_in(self):
+        """Fixed zoom in for 3D that preserves view integrity"""
+        if self.ax3 and self.has_data:
             try:
-                lo, hi = getter()
-                center = 0.5*(lo+hi)
-                half = max((hi-lo)*factor/2, min_width)
-                setter((center-half, center+half))
+                # Get current limits
+                xlim = self.ax3.get_xlim()
+                ylim = self.ax3.get_ylim()
+                zlim = self.ax3.get_zlim()
+                # Scale each axis by 0.9 around center
+                for lim, setter in [(xlim, self.ax3.set_xlim), 
+                                   (ylim, self.ax3.set_ylim), 
+                                   (zlim, self.ax3.set_zlim)]:
+                    lo, hi = lim
+                    center = 0.5 * (lo + hi)
+                    half = (hi - lo) * 0.9 / 2
+                    setter((center - half, center + half))
+                # Update stored limits
+                self.store_original_view()
+                self.draw_idle()
             except Exception as e:
-                print(f"Error in zoom_in: {e}")
-                continue
-        self.draw()
+                print(f"Error in 3D zoom in: {e}")
 
-    def zoom_out(self, factor=1.25):
-        max_width = 1e6
-        for getter, setter in [
-            (self.ax3.get_xlim, self.ax3.set_xlim),
-            (self.ax3.get_ylim, self.ax3.set_ylim),
-            (self.ax3.get_zlim, self.ax3.set_zlim),
-        ]:
+    def zoom_out(self):
+        """Fixed zoom out for 3D that preserves view integrity"""
+        if self.ax3 and self.has_data:
             try:
-                lo, hi = getter()
-                center = 0.5*(lo+hi)
-                half = min((hi-lo)*factor/2, max_width)
-                setter((center-half, center+half))
+                # Get current limits
+                xlim = self.ax3.get_xlim()
+                ylim = self.ax3.get_ylim()
+                zlim = self.ax3.get_zlim()
+                # Scale each axis by 1.1 around center
+                for lim, setter in [(xlim, self.ax3.set_xlim), 
+                                   (ylim, self.ax3.set_ylim), 
+                                   (zlim, self.ax3.set_zlim)]:
+                    lo, hi = lim
+                    center = 0.5 * (lo + hi)
+                    half = (hi - lo) * 1.1 / 2
+                    setter((center - half, center + half))
+                # Update stored limits
+                self.store_original_view()
+                self.draw_idle()
             except Exception as e:
-                print(f"Error in zoom_out: {e}")
-                continue
-        self.draw()
+                print(f"Error in 3D zoom out: {e}")
+
+    def reset_view(self):
+        """Reset to original 3D view"""
+        if self.has_data and all(x is not None for x in [self.original_X, self.original_Y, self.original_Z]):
+            # Replot with original data to reset everything
+            self.plot_surface(self.original_X, self.original_Y, self.original_Z)
 
 class Fig2D(FigureCanvas):
     def __init__(self, parent=None, figsize=(12, 8), dark_mode=False):
+        # Create figure with appropriate size for the application
         fig = Figure(figsize=figsize, dpi=80, tight_layout=True)
         super().__init__(fig)
         if parent:
             self.setParent(parent)
-        
         self.color_h = "blue"
         self.color_e = "red"
         self.ax1 = self.figure.add_subplot(121, polar=True)
         self.ax2 = self.figure.add_subplot(122, polar=True)
         self.use_two_plots = True
         self.dark_mode = dark_mode
-        self.theta_h = None
+        # Store original data and limits to prevent toolbar interference
+        self.original_data_h = None
+        self.original_data_e = None
+        self.default_ylim = (0, 1)
+        self.has_data = False
+        self.show_lobes = False  # Initialize show_lobes
+        self.h_data = None  # Initialize h_data
+        self.e_data = None  # Initialize e_data
+        self.theta_h = None  # Initialize theta_h
         self.theta_e = None
-        self.h_data = None
-        self.e_data = None
-        self.show_lobes = False
         self.update_figure_style()
-
-    def blend_with_white(self, color, blend_factor=0.5):
-        rgba = np.array(mcolors.to_rgba(color))
-        white = np.array([1, 1, 1, 1])
-        blended = (1 - blend_factor) * rgba + blend_factor * white
-        return blended
-
-    def add_cursor(self, ax_list):
-        cursor = mplcursors.cursor(ax_list, hover=True)
-
-        def custom_annotate(sel):
-            artist = sel.artist
-            color = artist.get_color()
-            light_color = self.blend_with_white(color, blend_factor=0.5)
-            sel.annotation.set_text(
-                f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB"
-            )
-            sel.annotation.get_bbox_patch().set(fc=light_color, alpha=0.7)
-
-        cursor.connect("add", custom_annotate)
 
     def highlight_lobes_lines(self, ax, phi, data, label_prefix='', main_idx=None):
         try:
             if phi is None or data is None or len(phi) != len(data):
-                print(f"No valid data or angles for {label_prefix} highlighting")
+                print(f"No valid data or angles for {label_prefix} highlighting: phi={phi}, data={data}")
                 return
-            peaks, _ = find_peaks(data, distance=10)
-            peak_values = data[peaks]
+            if np.any(np.isnan(data)) or np.any(np.isinf(data)):
+                print(f"Invalid values in {label_prefix} data")
+                return
 
-            if len(peak_values) == 0:
+            print(f"{label_prefix} - phi shape: {np.shape(phi)}, data shape: {np.shape(data)}")
+            peaks, _ = find_peaks(data, distance=max(1, len(data)//36))  # Adjust distance based on data length
+            print(f"{label_prefix} - Found {len(peaks)} peaks at indices: {peaks}")
+            if len(peaks) == 0:
                 print(f"No peaks found in {label_prefix}")
                 return
 
-            delta_theta = phi[1] - phi[0]
+            delta_theta = phi[1] - phi[0] if len(phi) > 1 else np.radians(1)
             window_degrees = 5
             window_size = max(1, int(window_degrees / np.degrees(delta_theta)))
 
@@ -300,32 +323,67 @@ class Fig2D(FigureCanvas):
                 line, = ax.plot(phi, highlight_mask, color=color, linewidth=2, label=label if not any(l.startswith(f"{label_prefix} {label.split()[-1]}") for l in ax.get_legend_handles_labels()[1]) else "")
                 return line
 
-            if main_idx is not None:
+            if main_idx is not None and 0 <= main_idx < len(data):
                 selected_main_idx = main_idx
             else:
-                selected_main_idx = peaks[np.argmax(peak_values)]
+                peak_values = data[peaks]
+                selected_main_idx = peaks[np.argmax(peak_values)] if len(peaks) > 0 else None
+
+            if selected_main_idx is None:
+                print(f"No valid main lobe index for {label_prefix}")
+                return
 
             main_line = plot_lobe(selected_main_idx, 'green', f'{label_prefix} Main Lobe')
             secondary_indices = [idx for idx in peaks if idx != selected_main_idx]
+            secondary_line = None
             if secondary_indices:
                 secondary_line = plot_lobe(secondary_indices[0], 'orange', f'{label_prefix} Secondary Lobe')
+
             back_angle = (phi[selected_main_idx] + np.pi) % (2 * np.pi)
             closest_idx = np.argmin(np.abs(phi - back_angle))
             back_line = plot_lobe(closest_idx, 'purple', f'{label_prefix} Back Lobe')
 
             base_handles, base_labels = ax.get_legend_handles_labels()
-            lobe_handles = [main_line, secondary_line, back_line] if secondary_line else [main_line, back_line]
-            lobe_labels = [l.get_label() for l in lobe_handles if l.get_label()]
-            all_handles = [h for h in ax.lines if h.get_label() in ['H-plane', 'E-plane']] + lobe_handles
-            all_labels = ['H-plane' if 'H-plane' in base_labels else '', 'E-plane' if 'E-plane' in base_labels else ''] + lobe_labels
-            all_labels = [l for l in all_labels if l]
+            lobe_handles = [main_line]
+            if secondary_line:
+                lobe_handles.append(secondary_line)
+                lobe_handles.append(back_line)
+                lobe_labels = [l.get_label() for l in lobe_handles if l.get_label()]
+                all_handles = [h for h in ax.lines if h.get_label() in ['H-plane', 'E-plane']] + lobe_handles
+                all_labels = ['H-plane' if 'H-plane' in base_labels else '', 'E-plane' if 'E-plane' in base_labels else ''] + lobe_labels
+                all_labels = [l for l in all_labels if l]
             if all_handles and all_labels:
                 ax.legend(all_handles, all_labels, loc='upper right', bbox_to_anchor=(1.3, 1.0), frameon=True)
 
         except Exception as e:
             print(f"Error in highlight_lobes_lines ({label_prefix}): {e}")
 
+    def store_original_limits(self):
+        """Store the original axis limits after plotting data"""
+        if self.has_data:
+            try:
+                # Store limits for both axes
+                self.ax1_original_ylim = self.ax1.get_ylim()
+                self.ax2_original_ylim = self.ax2.get_ylim()
+            except:
+                self.ax1_original_ylim = self.default_ylim
+                self.ax2_original_ylim = self.default_ylim
+
+    def restore_proper_limits(self):
+        """Restore proper limits after toolbar interference"""
+        if self.has_data:
+            try:
+                # Restore stored limits or use defaults
+                if hasattr(self, 'ax1_original_ylim'):
+                    self.ax1.set_ylim(self.ax1_original_ylim)
+                if hasattr(self, 'ax2_original_ylim'):
+                    self.ax2.set_ylim(self.ax2_original_ylim)
+                self.draw_idle()
+            except Exception as e:
+                print(f"Warning: Could not restore limits: {e}")
+
     def update_figure_style(self):
+        """Update figure colors based on dark mode"""
         if self.dark_mode:
             self.figure.patch.set_facecolor('#2D2D30')
             for ax in [self.ax1, self.ax2]:
@@ -348,136 +406,126 @@ class Fig2D(FigureCanvas):
 
     def toggle_mode(self, two_plots: bool):
         self.use_two_plots = two_plots
-        if self.h_data is not None and self.e_data is not None:
-            self.plot_2D(self.h_data, self.e_data)
 
     def plot_2D(self, h, e):
-        try:
-            if h is None or e is None or len(h) == 0 or len(e) == 0:
-                print("Invalid or empty data for plotting")
-                return
-            self.ax1.clear()
-            self.ax2.clear()
-            self.figure.texts.clear()
-            self.theta_h = np.radians(np.arange(len(h)))
-            self.theta_e = np.radians(np.arange(len(e)))
-            self.h_data = h
-            self.e_data = e
+    # Store original data
+        self.original_data_h = np.array(h) if h is not None else None
+        self.original_data_e = np.array(e) if e is not None else None
+        self.h_data = np.array(h) if h is not None else None
+        self.e_data = np.array(e) if e is not None else None
+        self.has_data = self.h_data is not None and self.e_data is not None and len(self.h_data) > 0 and len(self.e_data) > 0
+    
+        if not self.has_data:
+            print("No valid data for plotting")
+            return
+    
+        self.ax1.clear()
+        self.ax2.clear()
+        self.theta_h = np.radians(np.arange(len(self.h_data)))
+        self.theta_e = np.radians(np.arange(len(self.e_data)))
 
-            main_idx = None
-            if self.show_lobes and self.use_two_plots:
+        main_idx = None
+        if self.show_lobes and self.use_two_plots and len(self.h_data) == len(self.e_data):
+            try:
                 combined_data = (self.h_data + self.e_data) / 2
+                if np.any(np.isnan(combined_data)) or np.any(np.isinf(combined_data)):
+                    print("Invalid values in combined data for peak detection")
+                    return
                 peaks, _ = find_peaks(combined_data, distance=10)
                 if len(peaks) > 0:
                     peak_values = combined_data[peaks]
                     main_idx = peaks[np.argmax(peak_values)]
+            except Exception as e:
+                print(f"Error calculating main_idx: {e}")
 
+        if self.use_two_plots:
+            self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax1.set_title('H-plane')
+            self.ax1.legend()
+            self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax2.set_title("E-plane")
+            self.ax2.set_theta_zero_location("N")
+            self.ax2.set_theta_direction(-1)
+            self.ax2.legend()
+        else:
+            self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax1.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax1.set_title('H & E overlay')
+            self.ax1.legend()
+            self.ax2.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax2.set_title('H & E rotated')
+            self.ax2.set_theta_zero_location("N")
+            self.ax2.set_theta_direction(-1)
+            self.ax2.legend()
+
+        if self.show_lobes:
             if self.use_two_plots:
-                h_line, = self.ax1.plot(self.theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
-                self.ax1.set_title('H-plane')
-                e_line, = self.ax2.plot(self.theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
-                self.ax2.set_title("E-plane")
-                self.ax2.set_theta_direction(-1)
-                self.ax1.legend(handles=[h_line], labels=['H-plane'], loc='upper right', bbox_to_anchor=(1.0, 1.0))
-                self.ax2.legend(handles=[e_line], labels=['E-plane'], loc='upper right', bbox_to_anchor=(1.0, 1.0))
-
-                self.add_cursor([h_line, e_line])
-
-                maxv_h = np.max(h)
-                minv_h = np.min(h)
-                self.figure.text(
-                    0.1, 0.1,
-                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
-                    fontsize=12, va='center', ha='left',
-                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
-                )
-
-                maxv_e = np.max(e)
-                minv_e = np.min(e)
-                self.figure.text(
-                    0.6, 0.1,
-                    f"Max (E-plane): {maxv_e:.2f} dB\nMin (E-plane): {minv_e:.2f} dB",
-                    fontsize=12, va='center', ha='left',
-                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
-                )
+                self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane', main_idx)
+                self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane', main_idx)
             else:
-                h_line, = self.ax1.plot(self.theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
-                e_line, = self.ax1.plot(self.theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
-                self.ax1.set_title('H & E overlay')
-                self.ax1.legend(handles=[h_line, e_line], labels=['H-plane', 'E-plane'], loc='upper right', bbox_to_anchor=(1.0, 1.0))
+                self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane')
+                self.highlight_lobes_lines(self.ax1, self.theta_e, self.e_data, 'E-plane')
+                self.highlight_lobes_lines(self.ax2, self.theta_h, self.h_data, 'H-plane')
+                self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane')
 
-                h_line2, = self.ax2.plot(self.theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
-                e_line2, = self.ax2.plot(self.theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
-                self.ax2.set_title('H & E rotated')
-                self.ax2.set_theta_direction(1)
-                self.ax2.legend(handles=[h_line2, e_line2], labels=['H-plane', 'E-plane'], loc='upper right', bbox_to_anchor=(1.0, 1.0))
-
-                self.add_cursor([h_line, e_line, h_line2, e_line2])
-
-                maxv_h = np.max(h)
-                minv_h = np.min(h)
-                self.figure.text(
-                    0.1, 0.1,
-                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
-                    fontsize=12, va='center', ha='left',
-                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
-                )
-
-                self.figure.text(
-                    0.6, 0.1,
-                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
-                    fontsize=12, va='center', ha='left',
-                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
-                )
-
-            if self.show_lobes:
-                if self.use_two_plots:
-                    self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane', main_idx)
-                    self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane', main_idx)
-                else:
-                    self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane')
-                    self.highlight_lobes_lines(self.ax1, self.theta_e, self.e_data, 'E-plane')
-                    self.highlight_lobes_lines(self.ax2, self.theta_h, self.h_data, 'H-plane')
-                    self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane')
-
-            self.figure.tight_layout()
-            self.figure.subplots_adjust(right=0.85, bottom=0.2)
-            self.update_figure_style()
-            self.draw()
-        except Exception as e:
-            print(f"Error in plot_2D: {e}")
+        self.update_figure_style()
+        self.store_original_limits()
+        self.draw()
 
     def zoom_in(self, factor=0.8):
+        """Fixed zoom in that preserves polar plot integrity"""
         min_ylim = 1e-3
         max_ylim = 1e6
         for ax in [self.ax1, self.ax2]:
-            if ax is not None:
+            if ax is not None and self.has_data:
                 try:
                     rmin, rmax = ax.get_ylim()
-                    new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
-                    if new_rmax > min_ylim:
-                        ax.set_ylim(rmin, new_rmax)
+                    # Calculate new range
+                    range_size = rmax - rmin
+                    new_range = range_size * factor
+                    center = (rmin + rmax) / 2
+                    new_rmin = max(center - new_range/2, 0)  # Don't go below 0 for polar
+                    new_rmax = min(center + new_range/2, max_ylim)
+                    new_rmax = max(new_rmax, min_ylim)  # Ensure minimum range
+                    if new_rmax > new_rmin:
+                        ax.set_ylim(new_rmin, new_rmax)
                 except Exception as e:
                     print(f"Error zooming axis: {e}")
                     continue
-        if self.h_data is not None and self.e_data is not None:
-            self.plot_2D(self.h_data, self.e_data)
+        # Update stored limits
+        self.store_original_limits()
+        self.draw_idle()
 
     def zoom_out(self, factor=1.25):
+        """Fixed zoom out that preserves polar plot integrity"""
         min_ylim = 1e-3
         max_ylim = 1e6
         for ax in [self.ax1, self.ax2]:
-            if ax is not None:
+            if ax is not None and self.has_data:
                 try:
                     rmin, rmax = ax.get_ylim()
-                    new_rmax = max(min(rmax * factor, max_ylim), min_ylim)
-                    if new_rmax > min_ylim:
-                        ax.set_ylim(rmin, new_rmax)
+                    # Calculate new range
+                    range_size = rmax - rmin
+                    new_range = range_size * factor
+                    center = (rmin + rmax) / 2
+                    new_rmin = max(center - new_range/2, 0)  # Don't go below 0 for polar
+                    new_rmax = min(center + new_range/2, max_ylim)
+                    new_rmax = max(new_rmax, min_ylim)  # Ensure minimum range
+                    if new_rmax > new_rmin:
+                        ax.set_ylim(new_rmin, new_rmax)
                 except Exception as e:
                     print(f"Error zooming axis: {e}")
                     continue
-        if self.h_data is not None and self.e_data is not None:
-            self.plot_2D(self.h_data, self.e_data)
+        # Update stored limits
+        self.store_original_limits()
+        self.draw_idle()
+
+    def reset_view(self):
+        """Reset to original view after plotting"""
+        if self.has_data and self.original_data_h is not None and self.original_data_e is not None:
+            # Replot with original data to reset everything
+            self.plot_2D(self.original_data_h, self.original_data_e)
 
 class Ui_Window:
     def setupUi(self, MainWindow):
@@ -544,7 +592,7 @@ class Ui_Window:
         self.plot_3d_button = QPushButton("Plot 3D")
         self.plot_3d_button.setIcon(QIcon.fromTheme("view-3d"))
         
-        self.save_button = QPushButton("Save Plot")
+        self.save_button = QPushButton("Save Project")
         self.save_button.setIcon(QIcon.fromTheme("document-save"))
         
         self.offset_button = QPushButton("Apply Offset")
@@ -593,43 +641,51 @@ class Ui_Window:
 
     def setup_tab1(self):
         tab1_layout = QVBoxLayout(self.tab1)
+        
+        # Navigation toolbar layout
         nav_layout1 = QHBoxLayout()
+        
+        # Placeholder for matplotlib toolbar (will be added by Window class)
         self.tab1_canvas_layout = QVBoxLayout()
-
-        self.zoom_in_button1 = QPushButton("Zoom In")
-        self.zoom_in_button1.setIcon(QIcon.fromTheme("zoom-in"))
-        self.zoom_out_button1 = QPushButton("Zoom Out")
-        self.zoom_out_button1.setIcon(QIcon.fromTheme("zoom-out"))
+        
+        # Custom navigation buttons
+        
+        
         self.color_button1 = QPushButton("Change Color")
         self.color_button1.setIcon(QIcon.fromTheme("color-picker"))
+        #a button here fo details 
         self.highlight_lobes_button = QPushButton("Highlight Lobes")
         self.highlight_lobes_button.setIcon(QIcon.fromTheme("dialog-information"))
         self.highlight_lobes_button.setCheckable(True)
-
+        
         nav_layout1.addStretch(1)
-        nav_layout1.addWidget(self.zoom_in_button1)
-        nav_layout1.addWidget(self.zoom_out_button1)
+        
         nav_layout1.addWidget(self.color_button1)
-        nav_layout1.addWidget(self.highlight_lobes_button)  # Add the button here
-
+        nav_layout1.addWidget(self.highlight_lobes_button)#the button here
+        
         tab1_layout.addLayout(nav_layout1)
         tab1_layout.addLayout(self.tab1_canvas_layout)
-
+        
+        # Controls layout
         controls_layout1 = QHBoxLayout()
+        
         self.back_button1 = QPushButton("Back")
         self.back_button1.setIcon(QIcon.fromTheme("go-previous"))
+        
         self.smooth_label1 = QLabel("Smooth:")
         self.smoothness_slider1 = QSlider(Qt.Horizontal)
-        self.smoothness_slider1.setRange(5, 50)
-        self.smoothness_slider1.setValue(5)
+        
+        self.smoothness_slider1.setValue(0)
+        self.smoothness_slider1.setRange(0,15)
+        self.smoothness_slider1.setSingleStep(2)  # Step size of 2
         self.next_button1 = QPushButton("Next")
         self.next_button1.setIcon(QIcon.fromTheme("go-next"))
-
+        
         controls_layout1.addWidget(self.back_button1)
         controls_layout1.addWidget(self.smooth_label1)
         controls_layout1.addWidget(self.smoothness_slider1)
         controls_layout1.addWidget(self.next_button1)
-
+        
         tab1_layout.addLayout(controls_layout1)
 
     def setup_tab2(self):
@@ -665,17 +721,15 @@ class Ui_Window:
         self.back_button2 = QPushButton("Back")
         self.back_button2.setIcon(QIcon.fromTheme("go-previous"))
         
-        self.smooth_label2 = QLabel("Smooth:")
-        self.smoothness_slider2 = QSlider(Qt.Horizontal)
-        self.smoothness_slider2.setRange(5, 50)
-        self.smoothness_slider2.setValue(5)
+        self.smooth_button = QPushButton("Smooth")
+        self.smooth_button.setCheckable(True)
         
         self.next_button2 = QPushButton("Next")
         self.next_button2.setIcon(QIcon.fromTheme("go-next"))
         
         controls_layout2.addWidget(self.back_button2)
-        controls_layout2.addWidget(self.smooth_label2)
-        controls_layout2.addWidget(self.smoothness_slider2)
+        controls_layout2.addWidget(self.smooth_button)
+        
         controls_layout2.addWidget(self.next_button2)
         
         tab2_layout.addLayout(controls_layout2)
@@ -797,6 +851,14 @@ class Ui_Window:
             QSlider::handle:horizontal:hover {{
                 background: {accent_color};
             }}
+            QSlider::sub-page:horizontal {{
+                background: {primary_color};
+                border-radius: 3px;
+            }}
+            QSlider::add-page:horizontal {{
+                background: {button_bg};
+                border-radius: 3px;
+            }}
             QCheckBox {{
                 color: {text_color};
             }}
@@ -840,10 +902,9 @@ class Ui_Window:
         main_buttons = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button,
-            self.color_button1, self.zoom_in_button1, self.zoom_out_button1,
-            self.color_button3D, self.zoom_in_button2, self.zoom_out_button2,
-            self.highlight_lobes_button
+            self.online_view_button, self.show_details_button,self.color_button1,
+            
+            self.color_button3D, self.zoom_in_button2, self.zoom_out_button2, self.smooth_button
         ]
         
         nav_buttons = [
@@ -871,9 +932,8 @@ class Window(QMainWindow):
         self.fig2D = Fig2D(self, figsize=(10, 6), dark_mode=self.view.dark_mode)
         self.fig3D = Fig3D(self, figsize=(8, 6), dark_mode=self.view.dark_mode)
 
-        # Create toolbars
-        self.toolbar1 = NavigationToolbar(self.fig2D, self)
-        self.toolbar2 = NavigationToolbar(self.fig3D, self)
+        # Create custom toolbars with reset functionality
+        self.setup_custom_toolbars()
 
         # Add figures and toolbars to layouts
         self.view.tab1_canvas_layout.addWidget(self.toolbar1)
@@ -884,8 +944,10 @@ class Window(QMainWindow):
         # Connect theme toggle
         self.view.theme_toggle.stateChanged.connect(self.toggle_theme)
         self.view.highlight_lobes_button.toggled.connect(self.toggle_lobes_highlighting)
+        # Connect custom reset buttons
+        self.connect_toolbar_events()
 
-    def toggle_lobes_highlighting(self, checked):
+    def toggle_lobes_highlighting(self, checked): #this too 
         self.fig2D.show_lobes = checked
         # Replot to apply or remove highlighting
         if self.fig2D.h_data is not None and self.fig2D.e_data is not None:
@@ -901,6 +963,7 @@ class Window(QMainWindow):
         msg = QMessageBox(self)
         msg.setWindowTitle("Select Plane")
         msg.setText("Which plane's color do you want to change?")
+        
         h_button = msg.addButton("H-plane", QMessageBox.AcceptRole)
         e_button = msg.addButton("E-plane", QMessageBox.AcceptRole)
         msg.exec()
@@ -926,11 +989,80 @@ class Window(QMainWindow):
             if dialog.exec():
                  file_name = dialog.selectedFiles()[0]
                  return file_name
-    def file_history(self):
-        file_dialog = QFileDialog()
-        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+    def file_history(self, mode):
+        """
+        Open a file dialog for saving or opening a JSON file, depending on mode.
+        mode: 'save' or 'open'
+        Returns the selected file path or None if cancelled.
+        """
+        file_dialog = QFileDialog(self)
         file_dialog.setNameFilter("JSON Files (*.json)")
         file_dialog.setDefaultSuffix("json")
+        if mode == 'save':
+            file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+            dialog_title = "Save History As"
+        elif mode == 'open':
+            file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+            dialog_title = "Open History File"
+        else:
+            raise ValueError("mode must be 'save' or 'open'")
+        file_dialog.setWindowTitle(dialog_title)
         if file_dialog.exec():
             return file_dialog.selectedFiles()[0]
+        return None
 
+    def setup_custom_toolbars(self):
+        """Create custom toolbars with reset functionality"""
+        self.toolbar1 = NavigationToolbar(self.fig2D, self)
+        self.toolbar2 = NavigationToolbar(self.fig3D, self)
+        # Add custom reset actions to toolbars
+        reset_action1 = QAction("Reset View", self)
+        reset_action1.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        reset_action1.triggered.connect(self.fig2D.reset_view)
+        self.toolbar1.addAction(reset_action1)
+        reset_action2 = QAction("Reset View", self)
+        reset_action2.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        reset_action2.triggered.connect(self.fig3D.reset_view)
+        self.toolbar2.addAction(reset_action2)
+
+    def connect_toolbar_events(self):
+        """Connect toolbar events to fix axis drift"""
+        # Override toolbar home button behavior
+        try:
+            # Find and override home button
+            for action in self.toolbar1.actions():
+                if action.text() == 'Home':
+                    action.triggered.disconnect()  # Disconnect original
+                    action.triggered.connect(self.home_2d)
+                elif action.text() == 'Back':
+                    action.triggered.connect(self.fix_2d_after_navigation)
+                elif action.text() == 'Forward':
+                    action.triggered.connect(self.fix_2d_after_navigation)
+            for action in self.toolbar2.actions():
+                if action.text() == 'Home':
+                    action.triggered.disconnect()  # Disconnect original
+                    action.triggered.connect(self.home_3d)
+                elif action.text() == 'Back':
+                    action.triggered.connect(self.fix_3d_after_navigation)
+                elif action.text() == 'Forward':
+                    action.triggered.connect(self.fix_3d_after_navigation)
+        except Exception as e:
+            print(f"Warning: Could not override toolbar buttons: {e}")
+
+    def home_2d(self):
+        """Custom home function for 2D plots"""
+        self.fig2D.reset_view()
+
+    def home_3d(self):
+        """Custom home function for 3D plots"""
+        self.fig3D.reset_view()
+
+    def fix_2d_after_navigation(self):
+        """Fix 2D plots after toolbar navigation"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self.fig2D.restore_proper_limits)
+
+    def fix_3d_after_navigation(self):
+        """Fix 3D plots after toolbar navigation"""
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self.fig3D.store_original_view)
