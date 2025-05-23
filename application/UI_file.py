@@ -118,10 +118,22 @@ class Fig3D(FigureCanvas):
             self.ax3.yaxis.label.set_color('#E0E0E0')
             self.ax3.zaxis.label.set_color('#E0E0E0')
             self.ax3.title.set_color('#E0E0E0')
-            # Set pane colors for 3D plot
-            self.ax3.xaxis.pane.fill = False
-            self.ax3.yaxis.pane.fill = False
-            self.ax3.zaxis.pane.fill = False
+
+            # Set pane colors for 3D plot (handle older/newer matplotlib versions)
+            try:
+                self.ax3.xaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.yaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.zaxis.pane.set_facecolor('#2D2D30')
+                self.ax3.xaxis.pane.fill = False
+                self.ax3.yaxis.pane.fill = False
+                self.ax3.zaxis.pane.fill = False
+            except Exception as e:
+                try:
+                    self.ax3.xaxis.pane.fill = False
+                    self.ax3.yaxis.pane.fill = False
+                    self.ax3.zaxis.pane.fill = False
+                except Exception as e2:
+                    print(f"Warning: Could not set 3D pane fill: {e2}")
         else:
             self.figure.patch.set_facecolor('#FFFFFF')
             self.ax3.set_facecolor('#FFFFFF')
@@ -164,39 +176,50 @@ class Fig3D(FigureCanvas):
         self.ax3.view_init(elev=30, azim=45)
         self.draw()
 
-    def zoom_in(self, factor=0.8):
-        min_width = 1e-3
-        for getter, setter in [
-            (self.ax3.get_xlim, self.ax3.set_xlim),
-            (self.ax3.get_ylim, self.ax3.set_ylim), 
-            (self.ax3.get_zlim, self.ax3.set_zlim),
-        ]:
-            try:
-                lo, hi = getter()
-                center = 0.5*(lo+hi)
-                half = max((hi-lo)*factor/2, min_width)
-                setter((center-half, center+half))
-            except Exception as e:
-                print(f"Error in zoom_in: {e}")
-                continue
-        self.draw()
+    def change_colormap(self, cmap_name):
+        """Change the colormap for the 3D surface plot and redraw if possible."""
+        self.cmap = cmap_name
+        # If a surface is already plotted, update it
+        # Try to update the colorbar and surface if present
+        try:
+            # Find the last Poly3DCollection (surface) in the axes
+            for artist in self.ax3.collections:
+                if hasattr(artist, 'set_cmap'):
+                    artist.set_cmap(self.cmap)
+            if self._cbar:
+                self._cbar.set_cmap(self.cmap)
+            self.draw()
+        except Exception as e:
+            print(f"Warning: Could not update colormap directly: {e}. Replotting may be needed.")
+            # Optionally, you could call plot_surface again with stored data if you keep it
 
-    def zoom_out(self, factor=1.25):
-        max_width = 1e6
-        for getter, setter in [
-            (self.ax3.get_xlim, self.ax3.set_xlim),
-            (self.ax3.get_ylim, self.ax3.set_ylim),
-            (self.ax3.get_zlim, self.ax3.set_zlim),
-        ]:
-            try:
+    def zoom_in(self):
+        # Zoom in for 3D: scale all axes limits by 0.9 (like plot_master)
+        if self.ax3:
+            for getter, setter in [
+                (self.ax3.get_xlim, self.ax3.set_xlim),
+                (self.ax3.get_ylim, self.ax3.set_ylim),
+                (self.ax3.get_zlim, self.ax3.set_zlim),
+            ]:
                 lo, hi = getter()
-                center = 0.5*(lo+hi)
-                half = min((hi-lo)*factor/2, max_width)
-                setter((center-half, center+half))
-            except Exception as e:
-                print(f"Error in zoom_out: {e}")
-                continue
-        self.draw()
+                center = 0.5 * (lo + hi)
+                half = (hi - lo) * 0.9 / 2
+                setter((center - half, center + half))
+            self.draw()
+
+    def zoom_out(self):
+        # Zoom out for 3D: scale all axes limits by 1.1 (like plot_master)
+        if self.ax3:
+            for getter, setter in [
+                (self.ax3.get_xlim, self.ax3.set_xlim),
+                (self.ax3.get_ylim, self.ax3.set_ylim),
+                (self.ax3.get_zlim, self.ax3.set_zlim),
+            ]:
+                lo, hi = getter()
+                center = 0.5 * (lo + hi)
+                half = (hi - lo) * 1.1 / 2
+                setter((center - half, center + half))
+            self.draw()
 
 class Fig2D(FigureCanvas):
     def __init__(self, parent=None, figsize=(12, 8), dark_mode=False):
@@ -252,6 +275,7 @@ class Fig2D(FigureCanvas):
 
             self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title("E-plane")
+            self.ax2.set_theta_zero_location("N")
             self.ax2.set_theta_direction(-1)
             self.ax2.legend()
         else:
@@ -263,7 +287,8 @@ class Fig2D(FigureCanvas):
             self.ax2.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
             self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title('H & E rotated')
-            self.ax2.set_theta_direction(1)
+            self.ax2.set_theta_zero_location("N")
+            self.ax2.set_theta_direction(-1)
             self.ax2.legend()
         
         self.update_figure_style()
@@ -366,7 +391,7 @@ class Ui_Window:
         self.plot_3d_button = QPushButton("Plot 3D")
         self.plot_3d_button.setIcon(QIcon.fromTheme("view-3d"))
         
-        self.save_button = QPushButton("Save Plot")
+        self.save_button = QPushButton("Save Project")
         self.save_button.setIcon(QIcon.fromTheme("document-save"))
         
         self.offset_button = QPushButton("Apply Offset")
@@ -423,18 +448,13 @@ class Ui_Window:
         self.tab1_canvas_layout = QVBoxLayout()
         
         # Custom navigation buttons
-        self.zoom_in_button1 = QPushButton("Zoom In")
-        self.zoom_in_button1.setIcon(QIcon.fromTheme("zoom-in"))
         
-        self.zoom_out_button1 = QPushButton("Zoom Out")
-        self.zoom_out_button1.setIcon(QIcon.fromTheme("zoom-out"))
         
         self.color_button1 = QPushButton("Change Color")
         self.color_button1.setIcon(QIcon.fromTheme("color-picker"))
         
         nav_layout1.addStretch(1)
-        nav_layout1.addWidget(self.zoom_in_button1)
-        nav_layout1.addWidget(self.zoom_out_button1)
+        
         nav_layout1.addWidget(self.color_button1)
         
         tab1_layout.addLayout(nav_layout1)
@@ -448,9 +468,10 @@ class Ui_Window:
         
         self.smooth_label1 = QLabel("Smooth:")
         self.smoothness_slider1 = QSlider(Qt.Horizontal)
-        self.smoothness_slider1.setRange(5, 50)
-        self.smoothness_slider1.setValue(5)
         
+        self.smoothness_slider1.setValue(0)
+        self.smoothness_slider1.setRange(0,15)
+        self.smoothness_slider1.setSingleStep(2)  # Step size of 2
         self.next_button1 = QPushButton("Next")
         self.next_button1.setIcon(QIcon.fromTheme("go-next"))
         
@@ -496,8 +517,9 @@ class Ui_Window:
         
         self.smooth_label2 = QLabel("Smooth:")
         self.smoothness_slider2 = QSlider(Qt.Horizontal)
-        self.smoothness_slider2.setRange(5, 50)
-        self.smoothness_slider2.setValue(5)
+        self.smoothness_slider2.setRange(0, 11)
+        self.smoothness_slider2.setValue(0)
+        
         
         self.next_button2 = QPushButton("Next")
         self.next_button2.setIcon(QIcon.fromTheme("go-next"))
@@ -626,6 +648,14 @@ class Ui_Window:
             QSlider::handle:horizontal:hover {{
                 background: {accent_color};
             }}
+            QSlider::sub-page:horizontal {{
+                background: {primary_color};
+                border-radius: 3px;
+            }}
+            QSlider::add-page:horizontal {{
+                background: {button_bg};
+                border-radius: 3px;
+            }}
             QCheckBox {{
                 color: {text_color};
             }}
@@ -670,7 +700,7 @@ class Ui_Window:
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
             self.online_view_button, self.show_details_button,
-            self.color_button1, self.zoom_in_button1, self.zoom_out_button1,
+            
             self.color_button3D, self.zoom_in_button2, self.zoom_out_button2
         ]
         
@@ -722,6 +752,7 @@ class Window(QMainWindow):
         msg = QMessageBox(self)
         msg.setWindowTitle("Select Plane")
         msg.setText("Which plane's color do you want to change?")
+        
         h_button = msg.addButton("H-plane", QMessageBox.AcceptRole)
         e_button = msg.addButton("E-plane", QMessageBox.AcceptRole)
         msg.exec()
@@ -747,12 +778,28 @@ class Window(QMainWindow):
             if dialog.exec():
                  file_name = dialog.selectedFiles()[0]
                  return file_name
-    def file_history(self):
-        file_dialog = QFileDialog()
-        file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+    def file_history(self, mode):
+        """
+        Open a file dialog for saving or opening a JSON file, depending on mode.
+        mode: 'save' or 'open'
+        Returns the selected file path or None if cancelled.
+        """
+        file_dialog = QFileDialog(self)
         file_dialog.setNameFilter("JSON Files (*.json)")
         file_dialog.setDefaultSuffix("json")
+        if mode == 'save':
+            file_dialog.setAcceptMode(QFileDialog.AcceptSave)
+            dialog_title = "Save History As"
+        elif mode == 'open':
+            file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+            dialog_title = "Open History File"
+        else:
+            raise ValueError("mode must be 'save' or 'open'")
+        file_dialog.setWindowTitle(dialog_title)
         if file_dialog.exec():
             return file_dialog.selectedFiles()[0]
+        return None
+
+
 
 
