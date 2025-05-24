@@ -13,6 +13,9 @@ from PySide6.QtGui import QFont, QPalette, QColor, QIcon, QAction
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
+import mplcursors
+import matplotlib.colors as mcolors
 
 # Color scheme constants
 PRIMARY_COLOR = "#135CF8"
@@ -285,7 +288,75 @@ class Fig2D(FigureCanvas):
         self.original_data_e = None
         self.default_ylim = (0, 1)
         self.has_data = False
+        self.show_lobes = False  # Initialize show_lobes
+        self.h_data = None  # Initialize h_data
+        self.e_data = None  # Initialize e_data
+        self.theta_h = None  # Initialize theta_h
+        self.theta_e = None
         self.update_figure_style()
+
+    def highlight_lobes_lines(self, ax, phi, data, label_prefix='', main_idx=None):
+        try:
+            if phi is None or data is None or len(phi) != len(data):
+                print(f"No valid data or angles for {label_prefix} highlighting: phi={phi}, data={data}")
+                return
+            if np.any(np.isnan(data)) or np.any(np.isinf(data)):
+                print(f"Invalid values in {label_prefix} data")
+                return
+
+            print(f"{label_prefix} - phi shape: {np.shape(phi)}, data shape: {np.shape(data)}")
+            peaks, _ = find_peaks(data, distance=max(1, len(data)//36))  # Adjust distance based on data length
+            print(f"{label_prefix} - Found {len(peaks)} peaks at indices: {peaks}")
+            if len(peaks) == 0:
+                print(f"No peaks found in {label_prefix}")
+                return
+
+            delta_theta = phi[1] - phi[0] if len(phi) > 1 else np.radians(1)
+            window_degrees = 5
+            window_size = max(1, int(window_degrees / np.degrees(delta_theta)))
+
+            def plot_lobe(idx, color, label):
+                idx_start = max(0, idx - window_size)
+                idx_end = min(len(phi), idx + window_size + 1)
+                highlight_mask = np.full_like(data, np.nan)
+                highlight_mask[idx_start:idx_end] = data[idx_start:idx_end]
+                line, = ax.plot(phi, highlight_mask, color=color, linewidth=2, label=label if not any(l.startswith(f"{label_prefix} {label.split()[-1]}") for l in ax.get_legend_handles_labels()[1]) else "")
+                return line
+
+            if main_idx is not None and 0 <= main_idx < len(data):
+                selected_main_idx = main_idx
+            else:
+                peak_values = data[peaks]
+                selected_main_idx = peaks[np.argmax(peak_values)] if len(peaks) > 0 else None
+
+            if selected_main_idx is None:
+                print(f"No valid main lobe index for {label_prefix}")
+                return
+
+            main_line = plot_lobe(selected_main_idx, 'green', f'{label_prefix} Main Lobe')
+            secondary_indices = [idx for idx in peaks if idx != selected_main_idx]
+            secondary_line = None
+            if secondary_indices:
+                secondary_line = plot_lobe(secondary_indices[0], 'orange', f'{label_prefix} Secondary Lobe')
+
+            back_angle = (phi[selected_main_idx] + np.pi) % (2 * np.pi)
+            closest_idx = np.argmin(np.abs(phi - back_angle))
+            back_line = plot_lobe(closest_idx, 'purple', f'{label_prefix} Back Lobe')
+
+            base_handles, base_labels = ax.get_legend_handles_labels()
+            lobe_handles = [main_line]
+            if secondary_line:
+                lobe_handles.append(secondary_line)
+                lobe_handles.append(back_line)
+                lobe_labels = [l.get_label() for l in lobe_handles if l.get_label()]
+                all_handles = [h for h in ax.lines if h.get_label() in ['H-plane', 'E-plane']] + lobe_handles
+                all_labels = ['H-plane' if 'H-plane' in base_labels else '', 'E-plane' if 'E-plane' in base_labels else ''] + lobe_labels
+                all_labels = [l for l in all_labels if l]
+            if all_handles and all_labels:
+                ax.legend(all_handles, all_labels, loc='upper right', bbox_to_anchor=(1.3, 1.0), frameon=True)
+
+        except Exception as e:
+            print(f"Error in highlight_lobes_lines ({label_prefix}): {e}")
 
     def store_original_limits(self):
         """Store the original axis limits after plotting data"""
@@ -337,36 +408,68 @@ class Fig2D(FigureCanvas):
         self.use_two_plots = two_plots
 
     def plot_2D(self, h, e):
-        # Store original data
+    # Store original data
         self.original_data_h = np.array(h) if h is not None else None
         self.original_data_e = np.array(e) if e is not None else None
-        self.has_data = True
+        self.h_data = np.array(h) if h is not None else None
+        self.e_data = np.array(e) if e is not None else None
+        self.has_data = self.h_data is not None and self.e_data is not None and len(self.h_data) > 0 and len(self.e_data) > 0
+    
+        if not self.has_data:
+            print("No valid data for plotting")
+            return
+    
         self.ax1.clear()
         self.ax2.clear()
-        theta_h = np.radians(np.arange(len(h)))  
-        theta_e = np.radians(np.arange(len(e)))
+        self.theta_h = np.radians(np.arange(len(self.h_data)))
+        self.theta_e = np.radians(np.arange(len(self.e_data)))
+
+        main_idx = None
+        if self.show_lobes and self.use_two_plots and len(self.h_data) == len(self.e_data):
+            try:
+                combined_data = (self.h_data + self.e_data) / 2
+                if np.any(np.isnan(combined_data)) or np.any(np.isinf(combined_data)):
+                    print("Invalid values in combined data for peak detection")
+                    return
+                peaks, _ = find_peaks(combined_data, distance=10)
+                if len(peaks) > 0:
+                    peak_values = combined_data[peaks]
+                    main_idx = peaks[np.argmax(peak_values)]
+            except Exception as e:
+                print(f"Error calculating main_idx: {e}")
+
         if self.use_two_plots:
-            self.ax1.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
             self.ax1.set_title('H-plane')
             self.ax1.legend()
-            self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title("E-plane")
             self.ax2.set_theta_zero_location("N")
-            self.ax2.set_theta_direction(-1)
+            self.ax2.set_theta_direction(1)
             self.ax2.legend()
         else:
-            self.ax1.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
-            self.ax1.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax1.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax1.set_title('H & E overlay')
             self.ax1.legend()
-            self.ax2.plot(theta_h, h, color=self.color_h, label='H-plane', linewidth=2)
-            self.ax2.plot(theta_e, e, color=self.color_e, label='E-plane', linewidth=2)
+            self.ax2.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
+            self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title('H & E rotated')
             self.ax2.set_theta_zero_location("N")
-            self.ax2.set_theta_direction(-1)
+            self.ax2.set_theta_direction(1)
             self.ax2.legend()
+
+        if self.show_lobes:
+            if self.use_two_plots:
+                self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane', main_idx)
+                self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane', main_idx)
+            else:
+                self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane')
+                self.highlight_lobes_lines(self.ax1, self.theta_e, self.e_data, 'E-plane')
+                self.highlight_lobes_lines(self.ax2, self.theta_h, self.h_data, 'H-plane')
+                self.highlight_lobes_lines(self.ax2, self.theta_e, self.e_data, 'E-plane')
+
         self.update_figure_style()
-        # Store original limits after plotting
         self.store_original_limits()
         self.draw()
 
@@ -499,8 +602,7 @@ class Ui_Window:
         self.online_view_button = QPushButton("Online View")
         self.online_view_button.setIcon(QIcon.fromTheme("network-wired"))
         
-        self.show_details_button = QPushButton("Show Details")
-        self.show_details_button.setIcon(QIcon.fromTheme("dialog-information"))
+        
         
         # Theme toggle
         self.theme_layout = QHBoxLayout()
@@ -514,7 +616,7 @@ class Ui_Window:
         widgets = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button
+            self.online_view_button, 
         ]
         
         for widget in widgets:
@@ -550,10 +652,15 @@ class Ui_Window:
         
         self.color_button1 = QPushButton("Change Color")
         self.color_button1.setIcon(QIcon.fromTheme("color-picker"))
+        #a button here fo details 
+        self.highlight_lobes_button = QPushButton("Highlight Lobes")
+        self.highlight_lobes_button.setIcon(QIcon.fromTheme("dialog-information"))
+        self.highlight_lobes_button.setCheckable(True)
         
         nav_layout1.addStretch(1)
         
         nav_layout1.addWidget(self.color_button1)
+        nav_layout1.addWidget(self.highlight_lobes_button)#the button here
         
         tab1_layout.addLayout(nav_layout1)
         tab1_layout.addLayout(self.tab1_canvas_layout)
@@ -794,14 +901,15 @@ class Ui_Window:
         main_buttons = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button,self.color_button1,
+            self.online_view_button,
             
             self.color_button3D, self.zoom_in_button2, self.zoom_out_button2, self.smooth_button
         ]
         
         nav_buttons = [
             self.back_button1, self.next_button1, 
-            self.back_button2, self.next_button2
+            self.back_button2, self.next_button2,
+            self.highlight_lobes_button,self.color_button1
         ]
         
         for button in main_buttons:
@@ -835,8 +943,15 @@ class Window(QMainWindow):
         
         # Connect theme toggle
         self.view.theme_toggle.stateChanged.connect(self.toggle_theme)
+        self.view.highlight_lobes_button.toggled.connect(self.toggle_lobes_highlighting)
         # Connect custom reset buttons
         self.connect_toolbar_events()
+
+    def toggle_lobes_highlighting(self, checked): #this too 
+        self.fig2D.show_lobes = checked
+        # Replot to apply or remove highlighting
+        if self.fig2D.h_data is not None and self.fig2D.e_data is not None:
+            self.fig2D.plot_2D(self.fig2D.h_data, self.fig2D.e_data)
 
     def toggle_theme(self, state):
         is_dark = bool(state)
@@ -951,7 +1066,3 @@ class Window(QMainWindow):
         """Fix 3D plots after toolbar navigation"""
         from PySide6.QtCore import QTimer
         QTimer.singleShot(100, self.fig3D.store_original_view)
-
-
-
-

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QMessageBox
 import json
 import numpy as np
 import os
+import plotly.graph_objects as go
 class Controler(QObject):
     def __init__(self  ,  parent = None):
         super().__init__(parent)
@@ -17,8 +18,9 @@ class Controler(QObject):
                 "h_plane3D":[],
                 "e_plane3D":[],
                 "e_color":[],
-                "h_color" : []
-                ,"3d_color":[]
+                "h_color" : [],
+                "3d_color":[],
+                "show_lobes": []
             }
         self.index = -1
         self.i = -1
@@ -48,23 +50,25 @@ class Controler(QObject):
         self.ui.view.smooth_button.toggled.connect(self.smooth_3D)
         self.ui.view.online_view_button.clicked.connect(self.load_project)
 
-#self.smoothness_slider1.valueChanged.connect(controller.smooth_2D)
-
-#self.smoothness_slider2.valueChanged.connect(controller.smooth_3D)
-
-        
-
-
-
-
-
-
-
+        #to show the highlight 
+        self.ui.view.highlight_lobes_button.toggled.connect(self.toggle_lobes_highlighting)
 
 
 #reading a file
 
-    
+    def toggle_lobes_highlighting(self, checked):
+        try:
+            self.ui.fig2D.show_lobes = checked
+            self.listHistory["show_lobes"].append(checked)
+            self.limitListSize()
+            if self.ui.fig2D.h_data is not None and self.ui.fig2D.e_data is not None:
+                self.ui.fig2D.plot_2D(self.ui.fig2D.h_data, self.ui.fig2D.e_data)
+                self.ui.toolbar1.push_current()
+            else:
+                self.ui.view.statusbar.showMessage("No data to highlight. Please import data first.")
+        except Exception as e:
+            self.ui.view.statusbar.showMessage(f"Error highlighting lobes: {str(e)}")
+            print(f"Error in toggle_lobes_highlighting: {e}")
 
     def read(self):
         try:
@@ -82,6 +86,10 @@ class Controler(QObject):
             color2e = self.ui.fig2D.color_e
             color2h = self.ui.fig2D.color_h
             
+
+            if Hdata2 is None or Edata2 is None:
+                raise ValueError("Failed to load valid 2D data from file")
+            
             self.listHistory["h_plane2D"].append(Hdata2)
             self.listHistory["e_plane2D"].append(Edata2)
             self.listHistory["h_plane3D"].append(Hdata3)
@@ -89,10 +97,12 @@ class Controler(QObject):
             self.listHistory["e_color"].append(color2e)
             self.listHistory["h_color"].append(color2h)
             
+            
             self.index += 1
             self.limitListSize()
+
             
-            QMessageBox.information(self.ui, "Success", f"File '{file_name}' loaded successfully!")
+            
             
         except FileNotFoundError:
             QMessageBox.critical(self.ui, "File Error", "The selected file could not be found.")
@@ -178,7 +188,7 @@ class Controler(QObject):
             self.listHistory["e_plane3D"].pop(0) 
             self.listHistory["h_color"].pop(0) 
             self.listHistory["e_color"].pop(0) 
-            self.listHistory["3d_color"].pop(0) 
+           
     def normal(self):
         try:
             if self.ui.view.offset_button.isChecked():
@@ -238,7 +248,7 @@ class Controler(QObject):
                 QMessageBox.warning(self.ui, "Data Warning", "No 2D data available for smoothing. Please load a file first.")
                 return
                 
-            self.model.smooth2D(number, "2D")
+            self.model.smooth2D(number)
             self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D) 
             self.ui.toolbar1.push_current()  # Fixed: was toolbar2
             
@@ -356,6 +366,7 @@ class Controler(QObject):
                 self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
                 self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
                 
+                
                 # Redraw both plots
                 self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
                 X, Y, Z = self.model.data_3D()
@@ -373,3 +384,5 @@ class Controler(QObject):
             QMessageBox.critical(self.ui, "Data Error", f"Missing required data in project file:\n{str(e)}")
         except Exception as e:
             QMessageBox.critical(self.ui, "Load Error", f"Failed to load project:\n{str(e)}")
+    #def online(self):
+        
