@@ -1,0 +1,36 @@
+
+#if the plot is diff
+                maxv_h = np.max(h)
+                minv_h = np.min(h)
+                self.figure.text(
+                    0.1, 0.1,
+                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
+                    fontsize=12, va='center', ha='left',
+                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+                )
+
+                maxv_e = np.max(e)
+                minv_e = np.min(e)
+                self.figure.text(
+                    0.6, 0.1,
+                    f"Max (E-plane): {maxv_e:.2f} dB\nMin (E-plane): {minv_e:.2f} dB",
+                    fontsize=12, va='center', ha='left',
+                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+                )
+
+# if the same plot 
+                maxv_h = np.max(h)
+                minv_h = np.min(h)
+                self.figure.text(
+                    0.1, 0.1,
+                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
+                    fontsize=12, va='center', ha='left',
+                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+                )
+
+                self.figure.text(
+                    0.6, 0.1,
+                    f"Max (H-plane): {maxv_h:.2f} dB\nMin (H-plane): {minv_h:.2f} dB",
+                    fontsize=12, va='center', ha='left',
+                    bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+                )
