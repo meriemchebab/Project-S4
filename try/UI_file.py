@@ -283,6 +283,7 @@ class Fig2D(FigureCanvas):
         self.ax2 = self.figure.add_subplot(122, polar=True)
         self.use_two_plots = True
         self.dark_mode = dark_mode
+        self.text_boxes = []#thissss
         # Store original data and limits to prevent toolbar interference
         self.original_data_h = None
         self.original_data_e = None
@@ -293,7 +294,32 @@ class Fig2D(FigureCanvas):
         self.e_data = None  # Initialize e_data
         self.theta_h = None  # Initialize theta_h
         self.theta_e = None
+        self.cursor = None
         self.update_figure_style()
+
+    def blend_with_white(self, color, blend_factor=0.5):
+        rgba = np.array(mcolors.to_rgba(color))
+        white = np.array([1, 1, 1, 1])
+        blended = (1 - blend_factor) * rgba + blend_factor * white
+        return blended
+
+    def add_cursor(self, ax_list):
+        if self.cursor:
+            self.cursor.remove()  # Remove old cursor if it exists
+
+        self.cursor = mplcursors.cursor(ax_list, hover=True)
+
+        def custom_annotate(sel):
+            artist = sel.artist
+            color = artist.get_color()
+            light_color = self.blend_with_white(color, blend_factor=0.5)
+            sel.annotation.set_text(
+                f"Angle: {np.degrees(sel.target[0]):.1f}°\nValue: {sel.target[1]:.2f} dB"
+            )
+            sel.annotation.get_bbox_patch().set(fc=light_color, alpha=0.7)
+
+        self.cursor.connect("add", custom_annotate)
+
 
     def highlight_lobes_lines(self, ax, phi, data, label_prefix='', main_idx=None):
         try:
@@ -408,17 +434,28 @@ class Fig2D(FigureCanvas):
         self.use_two_plots = two_plots
 
     def plot_2D(self, h, e):
-    # Store original data
+        # Store original data
         self.original_data_h = np.array(h) if h is not None else None
         self.original_data_e = np.array(e) if e is not None else None
         self.h_data = np.array(h) if h is not None else None
         self.e_data = np.array(e) if e is not None else None
         self.has_data = self.h_data is not None and self.e_data is not None and len(self.h_data) > 0 and len(self.e_data) > 0
-    
+
         if not self.has_data:
             print("No valid data for plotting")
             return
-    
+
+    # Calculer max/min/delta une seule fois
+        if not hasattr(self, 'maxv_h_orig'):
+            self.maxv_h_orig = np.max(h)
+            self.minv_h_orig = np.min(h)
+            self.delta_h_orig = self.maxv_h_orig - self.minv_h_orig
+
+            self.maxv_e_orig = np.max(e)
+            self.minv_e_orig = np.min(e)
+            self.delta_e_orig = self.maxv_e_orig - self.minv_e_orig
+
+    # Nettoyage et préparation
         self.ax1.clear()
         self.ax2.clear()
         self.theta_h = np.radians(np.arange(len(self.h_data)))
@@ -438,10 +475,12 @@ class Fig2D(FigureCanvas):
             except Exception as e:
                 print(f"Error calculating main_idx: {e}")
 
+    # Tracé
         if self.use_two_plots:
             self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
             self.ax1.set_title('H-plane')
             self.ax1.legend()
+
             self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title("E-plane")
             self.ax2.set_theta_zero_location("N")
@@ -452,6 +491,7 @@ class Fig2D(FigureCanvas):
             self.ax1.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax1.set_title('H & E overlay')
             self.ax1.legend()
+
             self.ax2.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
             self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title('H & E rotated')
@@ -459,6 +499,34 @@ class Fig2D(FigureCanvas):
             self.ax2.set_theta_direction(-1)
             self.ax2.legend()
 
+    # Supprimer anciens textes si déjà présents
+        if hasattr(self, 'annotation_boxes'):
+            for box in self.annotation_boxes:
+                box.remove()
+        self.annotation_boxes = []
+
+    # Affichage annotation fixe (valeurs d'origine)
+        text1 = self.figure.text(
+            0.01, 0.1,
+            f"Max (H-plane): {self.maxv_h_orig:.2f} dB\n"
+            f"Min (H-plane): {self.minv_h_orig:.2f} dB\n"
+            f"Δ (H-plane): {self.delta_h_orig:.2f} dB",
+            fontsize=12, va='center', ha='left',
+            linespacing=1.8,
+            bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+        )
+        text2 = self.figure.text(
+            0.5, 0.1,
+            f"Max (E-plane): {self.maxv_e_orig:.2f} dB\n"
+            f"Min (E-plane): {self.minv_e_orig:.2f} dB\n"
+            f"Δ (E-plane): {self.delta_e_orig:.2f} dB",
+            fontsize=12, va='center', ha='left',
+            linespacing=1.8,
+            bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+        )
+        self.annotation_boxes.extend([text1, text2])
+
+    # Surlignage des lobes
         if self.show_lobes:
             if self.use_two_plots:
                 self.highlight_lobes_lines(self.ax1, self.theta_h, self.h_data, 'H-plane', main_idx)
@@ -472,6 +540,7 @@ class Fig2D(FigureCanvas):
         self.update_figure_style()
         self.store_original_limits()
         self.draw()
+
 
     def zoom_in(self, factor=0.8):
         """Fixed zoom in that preserves polar plot integrity"""
