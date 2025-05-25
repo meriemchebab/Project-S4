@@ -1,0 +1,38 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# Lire les données
+def lire_donnees(fichier):
+    with open(fichier, 'r') as f:
+        lignes = f.readlines()
+    return [float(l.strip()) for l in lignes if l.strip()]
+
+# === PARAMÈTRES ===
+nom_fichier = "graph2.txt"  # à adapter selon le fichier voulu
+r_values = lire_donnees(nom_fichier)
+
+# On suppose 360 valeurs pour θ (azimut), et 180 valeurs pour φ (élévation)
+theta = np.radians(np.linspace(0, 360, len(r_values)))  # en radians
+phi = np.radians(np.linspace(0, 180, len(r_values)))    # en radians
+
+# Pour une vraie sphère 3D, on fait un maillage 2D de theta et phi
+theta_grid, phi_grid = np.meshgrid(theta, phi)
+r_grid = np.tile(r_values, (len(phi), 1))  # dupliquer les rayons pour chaque phi
+
+# === CONVERSION SPHÉRIQUE ➜ CARTÉSIENNE ===
+x = r_grid * np.sin(phi_grid) * np.cos(theta_grid)
+y = r_grid * np.sin(phi_grid) * np.sin(theta_grid)
+z = r_grid * np.cos(phi_grid)
+
+# === AFFICHAGE ===
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+ax.plot_surface(x, y, z, cmap='viridis', edgecolor='k', linewidth=0.3, alpha=0.9)
+
+ax.set_title("Diagramme 3D en sphérique (converti en cartésien)")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z")
+plt.tight_layout()
+plt.show()
