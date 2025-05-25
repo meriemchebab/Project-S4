@@ -602,8 +602,6 @@ class Ui_Window:
         self.online_view_button = QPushButton("Online View")
         self.online_view_button.setIcon(QIcon.fromTheme("network-wired"))
         
-        self.show_details_button = QPushButton("Show Details")
-        self.show_details_button.setIcon(QIcon.fromTheme("dialog-information"))
         
         # Theme toggle
         self.theme_layout = QHBoxLayout()
