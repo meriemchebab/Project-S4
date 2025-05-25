@@ -6,6 +6,9 @@ import json
 import numpy as np
 import os
 import plotly.graph_objects as go
+import plotly.io as pio
+import tempfile
+import webbrowser
 class Controler(QObject):
     def __init__(self  ,  parent = None):
         super().__init__(parent)
@@ -47,7 +50,7 @@ class Controler(QObject):
         # In your controller __init__ after self.ui.view is created:
         self.ui.view.smoothness_slider1.valueChanged.connect(self.smooth_2D)
         self.ui.view.smooth_button.toggled.connect(self.smooth_3D)
-        self.ui.view.online_view_button.clicked.connect(self.open_plot_online)
+        self.ui.view.online_view_button.clicked.connect(self.plotly_view_all)
         self.ui.view.load_project.clicked.connect(self.load_project)
 
         #to show the highlight 
@@ -77,25 +80,24 @@ class Controler(QObject):
                 return
                 
             self.model.read_file(file_name)
-            
+           
             # Create history entry
-            Hdata2 = self.model.h_plane2D.copy()
-            Edata2 = self.model.e_plane2D.copy()
-            Hdata3 = self.model.h_plane3D.copy()
-            Edata3 = self.model.e_plane3D.copy()
-            color2e = self.ui.fig2D.color_e
-            color2h = self.ui.fig2D.color_h
-            
-
-            if Hdata2 is None or Edata2 is None:
-                raise ValueError("Failed to load valid 2D data from file")
-            
-            self.listHistory["h_plane2D"].append(Hdata2)
-            self.listHistory["e_plane2D"].append(Edata2)
-            self.listHistory["h_plane3D"].append(Hdata3)
-            self.listHistory["e_plane3D"].append(Edata3)
-            self.listHistory["e_color"].append(color2e)
-            self.listHistory["h_color"].append(color2h)
+            if self.model.h_plane2D is not None:
+                Hdata2 = self.model.h_plane2D.copy()
+                color2h = self.ui.fig2D.color_h
+                Hdata3 = self.model.h_plane3D.copy()
+                self.listHistory["h_plane3D"].append(Hdata3)
+                self.listHistory["h_plane2D"].append(Hdata2)
+                self.listHistory["h_color"].append(color2h)
+            if self.model.e_plane2D is not None:
+                Edata2 = self.model.e_plane2D.copy()
+                Edata3 = self.model.e_plane3D.copy()
+                color2e = self.ui.fig2D.color_e
+                self.listHistory["e_plane2D"].append(Edata2)
+                
+                self.listHistory["e_plane3D"].append(Edata3)
+                self.listHistory["e_color"].append(color2e)
+           
             
             
             self.index += 1
@@ -385,170 +387,16 @@ class Controler(QObject):
         except Exception as e:
             QMessageBox.critical(self.ui, "Load Error", f"Failed to load project:\n{str(e)}")
 
-# ---- Generate 2D Plot HTML (as JSON) ----
-    def create_2d_plot(self):
-        theta_h = np.degrees(np.arange(len(self.model.h_plane)))
-        theta_e = np.degrees(np.arange(len(self.model.e_plane)))
-
-    
-
-        fig = go.Figure()
-        fig.add_trace(go.Scatterpolar(r=self.model.h_plane2D, theta=theta_h, mode='lines', name='H-plane', line=dict(color='blue')))
-        fig.add_trace(go.Scatterpolar(r=self.model.e_plane2D, theta=theta_e, mode='lines', name='E-plane', line=dict(color='red')))
-        fig.update_layout(title='2D Polar Plot', polar=dict(radialaxis=dict(range=[-30, 0]), angularaxis=dict(direction="clockwise", rotation=90)))
-        print("2D coree")
-        return fig.to_json()
-
-# ---- Generate 3D Plot HTML (as JSON) ----
-    def create_3d_plot(self):
-        x,y,z = self.model.data_3D()
-        
-        fig = go.Figure(data=[go.Surface(x=x, y=y, z=z, surfacecolor=self.model.r, colorscale='plasma')])
-        fig.update_layout(title='3D Radiation Pattern', scene=dict(aspectmode='data'))
-        print("3D coree")
-        return fig.to_json()
-
-# ---- HTML Template for Web View ----
-    
-    def build_html_with_dropdown(self):
-        """Build HTML with dropdown for plot selection"""
-        plot_2d = self.create_2d_plot()
-        plot_3d = self.create_3d_plot()
-        
-        # Handle case where plots couldn't be created
-        if plot_2d is None:
-            plot_2d = '{"data": [], "layout": {"title": "No 2D data available"}}'
-        if plot_3d is None:
-            plot_3d = '{"data": [], "layout": {"title": "No 3D data available"}}'
-
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <style>
-                body {{ 
-                    font-family: Arial, sans-serif; 
-                    text-align: center; 
-                    margin: 0; 
-                    padding: 10px; 
-                    background-color: #f5f5f5;
-                }}
-                #controls {{ 
-                    margin: 1em; 
-                    padding: 10px;
-                    background-color: white;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-                #plot {{ 
-                    width: 95vw; 
-                    height: 80vh; 
-                    margin: auto; 
-                    background-color: white;
-                    border-radius: 5px;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }}
-                select {{
-                    padding: 5px 10px;
-                    font-size: 14px;
-                    border: 1px solid #ccc;
-                    border-radius: 3px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div id="controls">
-                <label for="viewSelector">Select View: </label>
-                <select id="viewSelector">
-                    <option value="2d">2D Polar Plot</option>
-                    <option value="3d">3D Surface Plot</option>
-                </select>
-            </div>
-            <div id="plot"></div>
-
-            <script>
-                let plot2D, plot3D;
-                
-                try {{
-                    plot2D = {plot_2d};
-                    plot3D = {plot_3d};
-                }} catch (e) {{
-                    console.error('Error parsing plot data:', e);
-                    plot2D = {{data: [], layout: {{title: "Error loading 2D plot"}}}};
-                    plot3D = {{data: [], layout: {{title: "Error loading 3D plot"}}}};
-                }}
-
-                function showPlot(type) {{
-                    try {{
-                        const plotData = type === '2d' ? plot2D : plot3D;
-                        
-                        if (!plotData || !plotData.data) {{
-                            console.error('Invalid plot data for type:', type);
-                            Plotly.react('plot', [], {{title: `No data available for ${{type.toUpperCase()}} plot`}});
-                            return;
-                        }}
-                        
-                        // Configure the plot
-                        const config = {{
-                            responsive: true,
-                            displayModeBar: true,
-                            modeBarButtonsToRemove: ['pan2d', 'lasso2d'],
-                            displaylogo: false
-                        }};
-                        
-                        Plotly.react('plot', plotData.data, plotData.layout, config);
-                        
-                    }} catch (e) {{
-                        console.error('Error showing plot:', e);
-                        Plotly.react('plot', [], {{title: `Error displaying ${{type.toUpperCase()}} plot`}});
-                    }}
-                }}
-
-                // Event listener for dropdown
-                document.getElementById('viewSelector').addEventListener('change', function(e) {{
-                    showPlot(e.target.value);
-                }});
-
-                // Initial load
-                document.addEventListener('DOMContentLoaded', function() {{
-                    showPlot('2d');
-                }});
-                
-                // Fallback initial load
-                setTimeout(() => showPlot('2d'), 100);
-            </script>
-        </body>
-        </html>
-        """
-        print("correct html")
-        return html
-
-    def open_plot_online(self):
-        """Open the online plot viewer"""
-        try:
-            html_content = self.build_html_with_dropdown()
-            if html_content:
-                self.ui.online.web_view.setHtml(html_content, QUrl("about:blank"))
-                self.ui.online.exec()
-            else:
-                print("Error: Could not generate HTML content")
-        except Exception as e:
-            print(f"Error opening online plot: {e}")
-        self.ui.view.online_view_button.clicked.connect(self.plotly_view_all)
 
 
 
 
-
-
- def plotly_view_all(self):
+    def plotly_view_all(self):
         self.plotly_online_view()
         self.plotly_3d_view()
 
     def plotly_online_view(self):
-        import plotly.graph_objects as go
-        import numpy as np
+        
 
         if self.model.h_plane2D is None or self.model.e_plane2D is None:
             QMessageBox.warning(self.ui, "No Data",
@@ -558,7 +406,7 @@ class Controler(QObject):
         theta = np.linspace(0, 360, len(self.model.h_plane2D))
 
         fig = go.Figure()
-
+    
         fig.add_trace(go.Scatterpolar(
             r=self.model.h_plane2D,
             theta=theta,
@@ -583,11 +431,11 @@ class Controler(QObject):
 
         with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as tmp_file:
             pio.write_html(fig, file=tmp_file.name, auto_open=False)
-            webbrowser.open(f'file://{tmp_file.name}')
+            tmp_file_path = tmp_file.name
+        webbrowser.open(f'file://{tmp_file_path}')
 
     def plotly_3d_view(self):
-        import plotly.graph_objects as go
-
+        
         if self.model.h_plane3D is None or self.model.e_plane3D is None:
             QMessageBox.warning(self.ui, "No Data",
                                 "Please load a file first.")
