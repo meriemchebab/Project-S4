@@ -283,6 +283,7 @@ class Fig2D(FigureCanvas):
         self.ax2 = self.figure.add_subplot(122, polar=True)
         self.use_two_plots = True
         self.dark_mode = dark_mode
+        self.text_boxes = []
         # Store original data and limits to prevent toolbar interference
         self.original_data_h = None
         self.original_data_e = None
@@ -418,6 +419,15 @@ class Fig2D(FigureCanvas):
         if not self.has_data:
             print("No valid data for plotting")
             return
+        
+        if not hasattr(self, 'maxv_h_orig'):
+            self.maxv_h_orig = np.max(h)
+            self.minv_h_orig = np.min(h)
+            self.delta_h_orig = self.maxv_h_orig - self.minv_h_orig
+
+            self.maxv_e_orig = np.max(e)
+            self.minv_e_orig = np.min(e)
+            self.delta_e_orig = self.maxv_e_orig - self.minv_e_orig
     
         self.ax1.clear()
         self.ax2.clear()
@@ -445,7 +455,7 @@ class Fig2D(FigureCanvas):
             self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title("E-plane")
             self.ax2.set_theta_zero_location("N")
-            self.ax2.set_theta_direction(-1)
+            self.ax2.set_theta_direction(1)
             self.ax2.legend()
         else:
             self.ax1.plot(self.theta_h, self.h_data, color=self.color_h, label='H-plane', linewidth=2)
@@ -456,8 +466,33 @@ class Fig2D(FigureCanvas):
             self.ax2.plot(self.theta_e, self.e_data, color=self.color_e, label='E-plane', linewidth=2)
             self.ax2.set_title('H & E rotated')
             self.ax2.set_theta_zero_location("N")
-            self.ax2.set_theta_direction(-1)
+            self.ax2.set_theta_direction(1)
             self.ax2.legend()
+
+        if hasattr(self, 'annotation_boxes'):
+            for box in self.annotation_boxes:
+                box.remove()
+        self.annotation_boxes = []
+
+        text1 = self.figure.text(
+            0.01, 0.1,
+            f"Max (H-plane): {self.maxv_h_orig:.2f} dB\n"
+            f"Min (H-plane): {self.minv_h_orig:.2f} dB\n"
+            f"Δ (H-plane): {self.delta_h_orig:.2f} dB",
+            fontsize=12, va='center', ha='left',
+            linespacing=1.8,
+            bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+        )
+        text2 = self.figure.text(
+            0.5, 0.1,
+            f"Max (E-plane): {self.maxv_e_orig:.2f} dB\n"
+            f"Min (E-plane): {self.minv_e_orig:.2f} dB\n"
+            f"Δ (E-plane): {self.delta_e_orig:.2f} dB",
+            fontsize=12, va='center', ha='left',
+            linespacing=1.8,
+            bbox=dict(facecolor='lightgray', alpha=0.5, edgecolor='black')
+        )
+        self.annotation_boxes.extend([text1, text2])
 
         if self.show_lobes:
             if self.use_two_plots:
@@ -603,6 +638,7 @@ class Ui_Window:
         self.online_view_button.setIcon(QIcon.fromTheme("network-wired"))
         
         
+        
         # Theme toggle
         self.theme_layout = QHBoxLayout()
         self.theme_label = QLabel("Dark Mode:")
@@ -615,7 +651,7 @@ class Ui_Window:
         widgets = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button
+            self.online_view_button, 
         ]
         
         for widget in widgets:
@@ -900,14 +936,15 @@ class Ui_Window:
         main_buttons = [
             self.import_button, self.usb_button, self.display_mode_button,
             self.plot_3d_button, self.save_button, self.offset_button,
-            self.online_view_button, self.show_details_button,self.color_button1,
+            self.online_view_button,
             
             self.color_button3D, self.zoom_in_button2, self.zoom_out_button2, self.smooth_button
         ]
         
         nav_buttons = [
             self.back_button1, self.next_button1, 
-            self.back_button2, self.next_button2
+            self.back_button2, self.next_button2,
+            self.highlight_lobes_button,self.color_button1
         ]
         
         for button in main_buttons:
