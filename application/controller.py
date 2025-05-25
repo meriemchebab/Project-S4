@@ -21,7 +21,11 @@ class Controler(QObject):
                 "h_plane3D":[],
                 "e_plane3D":[],
                 "e_color":[],
-                "h_color" : []
+                "h_color" : [],
+                "show_lobes": [],  # Added for lobe highlighting
+                "smooth_2d": [],   # Added for 2D smoothing
+                "smooth_3d": [],   # Added for 3D smoothing
+                "display_mode": []
                 
             }
         self.index = -1
@@ -78,40 +82,45 @@ class Controler(QObject):
             file_name = self.ui.open_file()
             if not file_name:  # User cancelled file dialog
                 return
-                
+            
             self.model.read_file(file_name)
-           
-            # Create history entry
+        
+        # Create history entry
             if self.model.h_plane2D is not None:
                 Hdata2 = self.model.h_plane2D.copy()
                 color2h = self.ui.fig2D.color_h
                 Hdata3 = self.model.h_plane3D.copy()
-                self.listHistory["h_plane3D"].append(Hdata3)
                 self.listHistory["h_plane2D"].append(Hdata2)
+                self.listHistory["h_plane3D"].append(Hdata3)
                 self.listHistory["h_color"].append(color2h)
             if self.model.e_plane2D is not None:
                 Edata2 = self.model.e_plane2D.copy()
                 Edata3 = self.model.e_plane3D.copy()
                 color2e = self.ui.fig2D.color_e
                 self.listHistory["e_plane2D"].append(Edata2)
-                
                 self.listHistory["e_plane3D"].append(Edata3)
                 self.listHistory["e_color"].append(color2e)
-           
-            
-            
+        
+        # Add default settings for new history keys
+            self.listHistory["show_lobes"].append(self.ui.fig2D.show_lobes)
+            self.listHistory["smooth_2d"].append(self.ui.view.smoothness_slider1.value())
+            self.listHistory["smooth_3d"].append(self.ui.view.smooth_button.isChecked())
+            self.listHistory["display_mode"].append(self.ui.fig2D.use_two_plots)
+        
             self.index += 1
             self.limitListSize()
-
-            
-            
-            
+        
+        # Plot the data
+            self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
+            self.ui.toolbar1.push_current()
+        
         except FileNotFoundError:
             QMessageBox.critical(self.ui, "File Error", "The selected file could not be found.")
         except PermissionError:
             QMessageBox.critical(self.ui, "Permission Error", "You don't have permission to read this file.")
         except Exception as e:
             QMessageBox.critical(self.ui, "Import Error", f"Failed to import file:\n{str(e)}")
+
     def can_goBack(self):
             if self.index > 0 :
                   return True
@@ -214,21 +223,25 @@ class Controler(QObject):
         except Exception as e:
             QMessageBox.critical(self.ui, "Processing Error", f"Failed to apply {operation}:\n{str(e)}")
 
-    def polar_2D_same(self):
-        try:
-            self.ui.fig2D.toggle_mode(False)
-            self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
-            self.ui.toolbar1.push_current()
-        except Exception as e:
-            QMessageBox.critical(self.ui, "Plot Error", f"Failed to switch to same-plot mode:\n{str(e)}")
-
     def polar_2D_split(self):
         try:
             self.ui.fig2D.toggle_mode(True)
             self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
             self.ui.toolbar1.push_current()
+            self.listHistory["display_mode"].append(True)
+            self.limitListSize()
         except Exception as e:
             QMessageBox.critical(self.ui, "Plot Error", f"Failed to switch to split-plot mode:\n{str(e)}")
+
+    def polar_2D_same(self):
+        try:
+            self.ui.fig2D.toggle_mode(False)
+            self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
+            self.ui.toolbar1.push_current()
+            self.listHistory["display_mode"].append(False)
+            self.limitListSize()
+        except Exception as e:
+            QMessageBox.critical(self.ui, "Plot Error", f"Failed to switch to same-plot mode:\n{str(e)}")
 
     def polar_3D(self):
         try:
@@ -249,31 +262,35 @@ class Controler(QObject):
             if not hasattr(self.model, 'h_plane2D') or self.model.h_plane2D is None:
                 QMessageBox.warning(self.ui, "Data Warning", "No 2D data available for smoothing. Please load a file first.")
                 return
-                
+            
             self.model.smooth2D(number)
-            self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D) 
-            self.ui.toolbar1.push_current()  # Fixed: was toolbar2
-            
-            # Save smoothed state to history
-            
-            
+            self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
+            self.ui.toolbar1.push_current()
+        
+        # Save smoothed state to history
+            self.listHistory["smooth_2d"].append(number)
+            self.limitListSize()
+        
         except ValueError as e:
             QMessageBox.critical(self.ui, "Smoothing Error", f"Invalid smoothing parameter:\n{str(e)}")
         except Exception as e:
             QMessageBox.critical(self.ui, "Processing Error", f"Failed to apply 2D smoothing:\n{str(e)}")
 
-    def smooth_3D(self,bool):
+    def smooth_3D(self, bool):
+        try:
+            if not hasattr(self.model, 'h_plane3D') or self.model.h_plane3D is None:
+                QMessageBox.warning(self.ui, "Data Warning", "No 3D data available for smoothing. Please load a file first.")
+                return
+
+            self.model.smooth3D(bool)
+            self.listHistory["smooth_3d"].append(bool)
+            self.limitListSize()
+            X, Y, Z = self.model.data_3D()
+            self.ui.fig3D.plot_surface(X, Y, Z)
+            self.ui.toolbar2.push_current()
         
-        if not hasattr(self.model, 'h_plane3D') or self.model.h_plane3D is None:
-            QMessageBox.warning(self.ui, "Data Warning", "No 3D data available for smoothing. Please load a file first.")
-            return
-          
-        self.model.smooth3D(bool)
-        X, Y, Z = self.model.data_3D()
-        self.ui.fig3D.plot_surface(X, Y, Z)
-        self.ui.toolbar2.push_current()
-        
-        # Save smoothed state to history
+        except Exception as e:
+            QMessageBox.critical(self.ui, "Processing Error", f"Failed to apply 3D smoothing:\n{str(e)}")
         
             
         
@@ -329,22 +346,19 @@ class Controler(QObject):
             file_path = self.ui.file_history("open")
             if not file_path:  # User cancelled file dialog
                 return
-                
-            # Check if file exists and is readable
+            
             if not os.path.exists(file_path):
                 QMessageBox.critical(self.ui, "File Error", f"File not found:\n{file_path}")
                 return
-                
+            
             with open(file_path, 'r') as f:
                 loaded_history = json.load(f)
-            
-            # Validate loaded data structure
+        
             required_keys = ["h_plane2D", "e_plane2D", "h_plane3D", "e_plane3D", "e_color", "h_color"]
             if not all(key in loaded_history for key in required_keys):
                 QMessageBox.critical(self.ui, "Data Error", "Invalid project file format. Missing required data fields.")
                 return
-                
-            # Convert lists back to numpy arrays where appropriate
+            
             for k, v in loaded_history.items():
                 self.listHistory[k] = []
                 for item in v:
@@ -356,10 +370,9 @@ class Controler(QObject):
                     except (ValueError, TypeError) as e:
                         QMessageBox.critical(self.ui, "Data Error", f"Corrupted data in project file for {k}:\n{str(e)}")
                         return
-            
+        
             self.index = len(self.listHistory["h_plane2D"]) - 1
-            
-            # Restore the latest state to the model/UI
+        
             if self.index >= 0:
                 self.model.h_plane2D = self.listHistory["h_plane2D"][self.index]
                 self.model.e_plane2D = self.listHistory["e_plane2D"][self.index]
@@ -367,15 +380,13 @@ class Controler(QObject):
                 self.model.e_plane3D = self.listHistory["e_plane3D"][self.index]
                 self.ui.fig2D.color_h = self.listHistory["h_color"][self.index]
                 self.ui.fig2D.color_e = self.listHistory["e_color"][self.index]
-                print(self.listHistory["h_plane2D"],self.listHistory["h_color"])
-                
-                # Redraw both plots
+            
                 self.ui.fig2D.plot_2D(self.model.h_plane2D, self.model.e_plane2D)
                 X, Y, Z = self.model.data_3D()
                 self.ui.fig3D.plot_surface(X, Y, Z)
-                
-            QMessageBox.information(self.ui, "Success", f"Project loaded successfully from:\n{file_path}")
             
+            QMessageBox.information(self.ui, "Success", f"Project loaded successfully from:\n{file_path}")
+        
         except FileNotFoundError:
             QMessageBox.critical(self.ui, "File Error", f"Project file not found:\n{file_path}")
         except PermissionError:
